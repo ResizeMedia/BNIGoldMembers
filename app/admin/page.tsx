@@ -327,7 +327,20 @@ export default function AdminDashboard() {
     }))
     setSmtpTestStatus({
       type: 'idle',
-      message: 'Preset Gmail aplicat. Foloseste adresa Gmail ca utilizator si un App Password (nu parola contului). Genereaza App Password din Google Account → Security → 2-Step Verification → App passwords.',
+      message: 'Preset Gmail aplicat (port 587, STARTTLS). Parola = App Password de 16 caractere din Google Account → Security → 2-Step Verification → App passwords.',
+    })
+  }
+
+  const applyOutlookSmtpPreset = () => {
+    setSmtpSettings((prev) => ({
+      ...prev,
+      host: 'smtp.office365.com',
+      port: '587',
+      secure: false,
+    }))
+    setSmtpTestStatus({
+      type: 'idle',
+      message: 'Preset Outlook/Office 365 aplicat (port 587, STARTTLS). Parola = parola contului Microsoft sau App Password daca MFA e activ.',
     })
   }
 
@@ -1356,13 +1369,24 @@ export default function AdminDashboard() {
                 >
                   Foloseste SMTP Gmail
                 </button>
+                <button
+                  onClick={applyOutlookSmtpPreset}
+                  className="rounded-md border border-blue-400 px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
+                >
+                  Foloseste SMTP Outlook
+                </button>
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               {smtpSettings.host.toLowerCase().includes('gmail') && (
                 <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
-                  Gmail detectat. Parola SMTP trebuie sa fie un App Password (nu parola contului Google). Genereaza din Google Account → Security → 2-Step Verification → App passwords.
+                  Gmail detectat. Parola SMTP trebuie sa fie App Password (16 caractere), nu parola contului Google. Genereaza din Google Account → Security → 2-Step Verification → App passwords.
+                </div>
+              )}
+              {smtpSettings.host.toLowerCase().includes('office365') && (
+                <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                  Outlook/Office 365 detectat. Foloseste parola contului Microsoft sau App Password daca MFA e activ pe cont.
                 </div>
               )}
               <div className="grid gap-4 lg:grid-cols-2">
