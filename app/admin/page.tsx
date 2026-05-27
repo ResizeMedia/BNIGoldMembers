@@ -1,220 +1,715 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { predefinedDomains } from '@/lib/domain-options'
+import {
+  Director,
+  DirectorRole,
+  DomainStatus,
+  DIRECTORS_STORAGE_KEY,
+  DOMAINS_STORAGE_KEY,
+  EMAIL_LOG_STORAGE_KEY,
+  EMAIL_TEMPLATES_STORAGE_KEY,
+  EmailLog,
+  EmailTemplate,
+  Group,
+  GROUPS_STORAGE_KEY,
+  PriorityDomain,
+  Recommendation,
+  RecommendationStatus,
+  REGULATION_STORAGE_KEY,
+  RegulationContent,
+  RECOMMENDATIONS_STORAGE_KEY,
+  SMTP_SETTINGS_STORAGE_KEY,
+  SmtpSettings,
+  getDirectorRegions,
+  getGroupsForDirector,
+  getLaunchCompletionPercent,
+  getLaunchProgressLabel,
+  getMemberLeaderboard,
+  getRecommendedMemberCount,
+  initialDirectors,
+  initialEmailTemplates,
+  initialGroups,
+  initialPriorityDomains,
+  initialRecommendations,
+  initialRegulationContent,
+  initialSmtpSettings,
+  isDomainRecommended,
+  renderEmailTemplate,
+  regions,
+} from '@/lib/bni-data'
 
-type Role = 'ed' | 'launch_director'
-type RecStatus = 'pending' | 'in_progress' | 'completed' | 'rejected'
-type DomainStatus = 'open' | 'filled'
-
-interface Director {
-  id: number
-  name: string
-  email: string
-  role: Role
-  regiune?: string
-  grup?: string
+const statusColors: Record<RecommendationStatus, string> = {
+  new: 'bg-amber-50 text-amber-700 border-amber-200',
+  recommendation_confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
+  invited_bni: 'bg-violet-50 text-violet-700 border-violet-200',
+  member_bni: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rejected: 'bg-red-50 text-red-700 border-red-200',
 }
 
-interface Recommendation {
-  id: number
-  from: string
-  to: string
-  domain: string
-  details: string
-  date: string
-  status: RecStatus
-  grup: string
+const statusLabels: Record<RecommendationStatus, string> = {
+  new: 'Recomandare noua',
+  recommendation_confirmed: 'Recomandare confirmata',
+  invited_bni: 'Invitat BNI',
+  member_bni: 'Membru BNI',
+  rejected: 'Respinsa',
 }
 
-interface PriorityDomain {
-  id: number
-  name: string
-  description: string
-  status: DomainStatus
-  filledBy?: string
-  grup: string
+function roleLabel(role: DirectorRole) {
+  if (role === 'admin') {
+    return 'Administrator'
+  }
+
+  return role === 'executive_director' ? 'Director Executiv' : 'Director Consultant Lansare'
 }
 
-interface Group {
-  name: string
-  regiune: string
-  director: string
-  status: string
+function accessLabel(director: Director) {
+  if (director.role === 'admin') {
+    return 'Acces complet'
+  }
+
+  const directorRegions = getDirectorRegions(director)
+
+  if (directorRegions.length > 0) {
+    return directorRegions.join(', ')
+  }
+
+  return director.group || 'Neconfigurat'
 }
 
-const initialDirectors: Director[] = [
-  { id: 1, name: 'Adina Arjoca', email: 'adina@bni.ro', role: 'launch_director', grup: 'BNI GOLD' },
-  { id: 2, name: 'Calin Hirza', email: 'calin@bni.ro', role: 'launch_director', grup: 'BNI MAGNUM OPUS' },
-  { id: 3, name: 'Adrian Covasa', email: 'adrian@bni.ro', role: 'launch_director', grup: 'BNI HEALTH' },
-]
+function getReadableEmailError(message: string) {
+  if (message.includes('ECONNREFUSED')) {
+    const endpointMatch = message.match(/ECONNREFUSED\s+([^\s]+)/)
+    const endpoint = endpointMatch ? ` (${endpointMatch[1]})` : ''
 
-const initialGroups: Group[] = [
-  { name: 'BNI GOLD', regiune: 'Timis', director: 'Adina Arjoca', status: 'in formare' },
-  { name: 'BNI MAGNUM OPUS', regiune: 'Salaj', director: 'Calin Hirza', status: 'in formare' },
-  { name: 'BNI HEALTH', regiune: 'Cluj', director: 'Adrian Covasa', status: 'in formare' },
-]
+    return `Conexiunea SMTP a fost refuzata${endpoint}. Pentru Hosterion foloseste lyssa.hosterion.net, port 465, SSL/TLS activ. Daca vezi o adresa Google, setarile salvate in admin inca folosesc Gmail.`
+  }
 
-const initialRecommendations: Recommendation[] = [
-  { id: 1, from: 'Ion Popescu', to: 'Maria Ionescu', domain: 'Contabilitate', details: 'Firma de contabilitate pentru IMM', date: '2026-05-20', status: 'pending', grup: 'BNI GOLD' },
-  { id: 2, from: 'Ana Marinescu', to: 'Vlad Popa', domain: 'IT Services', details: 'Dezvoltare web si hosting', date: '2026-05-19', status: 'completed', grup: 'BNI GOLD' },
-  { id: 3, from: 'Mihai Stan', to: 'Elena Radu', domain: 'Asigurari', details: 'Asigurari auto si CASCO', date: '2026-05-18', status: 'pending', grup: 'BNI MAGNUM OPUS' },
-  { id: 4, from: 'Cristina Vas', to: 'Dan Moldovan', domain: 'Marketing Digital', details: 'Campanii social media', date: '2026-05-17', status: 'in_progress', grup: 'BNI HEALTH' },
-]
+  if (message.includes('ENETUNREACH') || message.includes('EHOSTUNREACH')) {
+    return 'Serverul nu poate ajunge la adresa SMTP selectata. Pentru Hosterion foloseste lyssa.hosterion.net, port 465, SSL/TLS activ. Daca vezi o adresa IPv6 Google, setarile salvate in admin inca folosesc Gmail.'
+  }
 
-const initialPriorityDomains: PriorityDomain[] = [
-  { id: 1, name: 'Contabilitate', description: 'Servicii contabile si financiare', status: 'open', grup: 'BNI GOLD' },
-  { id: 2, name: 'IT Services', description: 'Dezvoltare software, hosting, suport IT', status: 'filled', filledBy: 'Vlad Popa', grup: 'BNI GOLD' },
-  { id: 3, name: 'Asigurari', description: 'Asigurari generale si de viata', status: 'open', grup: 'BNI GOLD' },
-  { id: 4, name: 'Avocatura', description: 'Consultanta juridica si drept comercial', status: 'open', grup: 'BNI GOLD' },
-  { id: 5, name: 'Marketing Digital', description: 'Social media, SEO, campanii online', status: 'open', grup: 'BNI GOLD' },
-  { id: 6, name: 'Constructii', description: 'Constructii civile si renovari', status: 'open', grup: 'BNI MAGNUM OPUS' },
-  { id: 7, name: 'Imobiliare', description: 'Vanzari si inchirieri proprietati', status: 'open', grup: 'BNI MAGNUM OPUS' },
-  { id: 8, name: 'Transport', description: 'Logistica si transport marfa', status: 'open', grup: 'BNI MAGNUM OPUS' },
-  { id: 9, name: 'Resurse Umane', description: 'Recrutare si HR outsourcing', status: 'open', grup: 'BNI HEALTH' },
-  { id: 10, name: 'Medicina Muncii', description: 'Servicii SSM si medicina muncii', status: 'open', grup: 'BNI HEALTH' },
-]
+  if (message.includes('Hostname/IP does not match certificate')) {
+    return 'Certificatul SMTP nu se potriveste cu hostul introdus. Pentru Hosterion foloseste lyssa.hosterion.net ca SMTP host, nu aliasul webmail.resize-media.com.'
+  }
 
-const allRegiuni = ['Timis', 'Salaj', 'Cluj', 'Bucuresti', 'Brasov', 'Sibiu', 'Constanta', 'Iasi', 'Mures', 'Bihor']
+  if (message.includes('ETIMEDOUT')) {
+    return 'Conexiunea SMTP expira. Hostingul poate bloca portul sau serverul SMTP nu raspunde.'
+  }
+
+  if (message.includes('EAUTH') || message.toLowerCase().includes('auth')) {
+    return 'Autentificarea SMTP a esuat. Verifica utilizatorul complet, parola contului SMTP si daca emailul expeditor este permis pentru acel cont.'
+  }
+
+  return message
+}
+
+type AdminTab = 'overview' | 'recommendations' | 'domains' | 'directors' | 'groups' | 'regulation' | 'email_templates' | 'smtp'
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
-  const [currentUser, setCurrentUser] = useState<{ role: Role; name: string; regiune?: string; grup?: string } | null>(null)
-  const [loginRole, setLoginRole] = useState<Role>('ed')
-  const [loginGrup, setLoginGrup] = useState('')
+  const [currentUser, setCurrentUser] = useState<Director | null>(null)
+  const [hasLoadedStoredState, setHasLoadedStoredState] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'recommendations' | 'domains' | 'directors' | 'groups'>('overview')
-  const [directors, setDirectors] = useState(initialDirectors)
-  const [recommendations, setRecommendations] = useState(initialRecommendations)
-  const [priorityDomains, setPriorityDomains] = useState(initialPriorityDomains)
-  const [groups, setGroups] = useState(initialGroups)
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview')
+  const [directors, setDirectors] = useState<Director[]>(initialDirectors)
+  const [groups, setGroups] = useState<Group[]>(initialGroups)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
+  const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(initialEmailTemplates)
+  const [emailLog, setEmailLog] = useState<EmailLog[]>([])
+  const [regulationContent, setRegulationContent] = useState<RegulationContent>(initialRegulationContent)
+  const [smtpSettings, setSmtpSettings] = useState<SmtpSettings>(initialSmtpSettings)
 
   const [showAddDirector, setShowAddDirector] = useState(false)
   const [showAddDomain, setShowAddDomain] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
-  const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_director' as Role, regiune: '', grup: '' })
-  const [newDomain, setNewDomain] = useState({ name: '', description: '', grup: '' })
-  const [newGroup, setNewGroup] = useState({ name: '', regiune: '', director: '' })
+  const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_consultant' as DirectorRole, temporaryPassword: '', regions: [] as string[], group: '' })
+  const [newDomain, setNewDomain] = useState({ name: '', description: '', group: '' })
+  const [newGroup, setNewGroup] = useState({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
+  const [editingGroupName, setEditingGroupName] = useState('')
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+  const [editingDirectorId, setEditingDirectorId] = useState<number | null>(null)
+  const [editingDirector, setEditingDirector] = useState<Director | null>(null)
+  const [temporaryPasswordInput, setTemporaryPasswordInput] = useState('')
+  const [openRecommendationIds, setOpenRecommendationIds] = useState<number[]>([])
+  const [smtpTestStatus, setSmtpTestStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({ type: 'idle', message: '' })
 
-  const filteredRecommendations = currentUser?.role === 'launch_director'
-    ? recommendations.filter(r => r.grup === currentUser.grup)
-    : recommendations
+  const visibleGroups = useMemo(() => currentUser ? getGroupsForDirector(currentUser, groups) : [], [currentUser, groups])
+  const visibleGroupNames = useMemo(() => new Set(visibleGroups.map((group) => group.name)), [visibleGroups])
+  const visibleRegionNames = useMemo(() => new Set(visibleGroups.map((group) => group.region)), [visibleGroups])
 
-  const filteredDomains = currentUser?.role === 'launch_director'
-    ? priorityDomains.filter(d => d.grup === currentUser.grup)
-    : priorityDomains
+  const visibleRecommendations = useMemo(
+    () => recommendations.filter((recommendation) => visibleGroupNames.has(recommendation.group)),
+    [recommendations, visibleGroupNames]
+  )
 
-  const filteredGroups = currentUser?.role === 'launch_director'
-    ? groups.filter(g => g.name === currentUser.grup)
-    : groups
+  const visibleDomains = useMemo(
+    () => priorityDomains.filter((domain) => visibleGroupNames.has(domain.group)),
+    [priorityDomains, visibleGroupNames]
+  )
+
+  const visibleDirectors = useMemo(() => {
+    if (!currentUser) return []
+    if (currentUser.role === 'admin') return directors
+
+    return directors.filter((director) => {
+      if (director.role === 'admin') return false
+      if (director.group && visibleGroupNames.has(director.group)) return true
+      return getDirectorRegions(director).some((region) => visibleRegionNames.has(region))
+    })
+  }, [currentUser, directors, visibleGroupNames, visibleRegionNames])
+
+  const rankedGroups = useMemo(
+    () => visibleGroups
+      .map((group) => ({
+        ...group,
+        launchPercent: getLaunchCompletionPercent(group, priorityDomains),
+        launchLabel: getLaunchProgressLabel(group, priorityDomains),
+        recommendedMembers: getRecommendedMemberCount(group, priorityDomains),
+        domains: priorityDomains.filter((domain) => domain.group === group.name),
+        recommendations: recommendations.filter((recommendation) => recommendation.group === group.name),
+      }))
+      .sort((a, b) => b.launchPercent - a.launchPercent || b.recommendedMembers - a.recommendedMembers || a.name.localeCompare(b.name)),
+    [visibleGroups, recommendations, priorityDomains]
+  )
+
+  const memberLeaderboard = useMemo(() => getMemberLeaderboard(visibleRecommendations).slice(0, 8), [visibleRecommendations])
+  const newNotifications = useMemo(
+    () => visibleRecommendations.filter((recommendation) => recommendation.status === 'new'),
+    [visibleRecommendations]
+  )
+
+  const stats = {
+    groups: visibleGroups.length,
+    recommendations: visibleRecommendations.length,
+    pending: visibleRecommendations.filter((recommendation) => recommendation.status === 'new').length,
+    completed: visibleRecommendations.filter((recommendation) => recommendation.status === 'member_bni').length,
+    openDomains: visibleDomains.filter((domain) => domain.status === 'open').length,
+    filledDomains: visibleDomains.filter((domain) => domain.status === 'filled').length,
+  }
+
+  const tabs: { key: AdminTab; label: string }[] = [
+    { key: 'overview', label: 'Sumar' },
+    { key: 'recommendations', label: 'Recomandari' },
+    { key: 'domains', label: 'Domenii' },
+    { key: 'directors', label: 'Directori' },
+    ...(currentUser?.role === 'admin' || currentUser?.role === 'executive_director' ? [
+      { key: 'groups' as AdminTab, label: 'Grupuri' },
+    ] : []),
+    ...(currentUser?.role === 'admin' ? [
+      { key: 'regulation' as AdminTab, label: 'Regulament' },
+    ] : []),
+    ...(currentUser?.role === 'admin' || currentUser?.role === 'executive_director' ? [
+      { key: 'email_templates' as AdminTab, label: 'Template email' },
+    ] : []),
+    ...(currentUser?.role === 'admin' ? [
+      { key: 'smtp' as AdminTab, label: 'SMTP' },
+    ] : []),
+  ]
+
+  const createEmailFromTemplate = async (type: EmailTemplate['type'], recommendation: Recommendation, nextStatus?: RecommendationStatus) => {
+    if (!recommendation.recommenderEmail) {
+      setError('Recomandarea nu are emailul celui care a recomandat, deci nu pot trimite notificarea.')
+      return
+    }
+
+    const template = emailTemplates.find((item) => item.type === type) || initialEmailTemplates.find((item) => item.type === type)
+    if (!template) return
+
+    const renderedEmail = renderEmailTemplate(template, {
+      recommenderName: recommendation.from,
+      recommendedName: recommendation.to,
+      domain: recommendation.domain,
+      group: recommendation.group,
+      status: nextStatus ? statusLabels[nextStatus] : statusLabels[recommendation.status],
+    })
+
+    const emailEntry = {
+      id: Date.now(),
+      type,
+      to: recommendation.recommenderEmail || '',
+      subject: renderedEmail.subject,
+      body: renderedEmail.body,
+      recommendationId: recommendation.id,
+      createdAt: new Date().toISOString(),
+    }
+
+    setEmailLog((prev) => [
+      ...prev,
+      {
+        ...emailEntry,
+        status: 'generat',
+      },
+    ])
+
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smtpSettings,
+          email: {
+            to: recommendation.recommenderEmail,
+            subject: renderedEmail.subject,
+            body: renderedEmail.body,
+          },
+        }),
+      })
+
+      const result = await response.json() as { success?: boolean; error?: string }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Nu am putut trimite emailul')
+      }
+
+      setEmailLog((prev) => prev.map((email) => email.id === emailEntry.id ? { ...email, status: 'trimis' } : email))
+      setError('')
+    } catch (sendError) {
+      const rawMessage = sendError instanceof Error ? sendError.message : 'Nu am putut trimite emailul'
+      const message = getReadableEmailError(rawMessage)
+      setEmailLog((prev) => prev.map((email) => email.id === emailEntry.id ? { ...email, status: 'eroare', error: message } : email))
+      setError(`Emailul nu a putut fi trimis: ${message}`)
+    }
+  }
+
+  const testSmtpConnection = async () => {
+    setSmtpTestStatus({ type: 'idle', message: 'Testez conexiunea SMTP...' })
+
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smtpSettings,
+          testOnly: true,
+        }),
+      })
+      const result = await response.json() as { success?: boolean; message?: string; error?: string }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Conexiunea SMTP nu a putut fi validata')
+      }
+
+      setSmtpTestStatus({ type: 'success', message: result.message || 'Conexiunea SMTP este valida' })
+    } catch (testError) {
+      const rawMessage = testError instanceof Error ? testError.message : 'Conexiunea SMTP nu a putut fi validata'
+      const message = getReadableEmailError(rawMessage)
+      setSmtpTestStatus({ type: 'error', message })
+    }
+  }
+
+  const applyHosterionSmtpPreset = () => {
+    setSmtpSettings((prev) => ({
+      ...prev,
+      host: 'lyssa.hosterion.net',
+      port: '465',
+      secure: true,
+    }))
+    setSmtpTestStatus({
+      type: 'idle',
+      message: 'Preset Hosterion aplicat. Pastreaza utilizatorul si parola contului SMTP, apoi testeaza conexiunea.',
+    })
+  }
+
+  const applyGmailSmtpPreset = () => {
+    setSmtpSettings((prev) => ({
+      ...prev,
+      host: 'smtp.gmail.com',
+      port: '587',
+      secure: false,
+    }))
+    setSmtpTestStatus({
+      type: 'idle',
+      message: 'Preset Gmail aplicat. Foloseste adresa Gmail ca utilizator si un App Password (nu parola contului). Genereaza App Password din Google Account → Security → 2-Step Verification → App passwords.',
+    })
+  }
+
+  useEffect(() => {
+    const storedDirectors = window.localStorage.getItem(DIRECTORS_STORAGE_KEY)
+    if (storedDirectors) {
+      try {
+        const parsed = JSON.parse(storedDirectors) as Director[]
+        if (Array.isArray(parsed)) {
+          setDirectors(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi directorii salvati local')
+      }
+    }
+
+    const storedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
+    if (storedGroups) {
+      try {
+        const parsed = JSON.parse(storedGroups) as Group[]
+        if (Array.isArray(parsed)) {
+          setGroups(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi grupurile salvate local')
+      }
+    }
+
+    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
+    if (storedDomains) {
+      try {
+        const parsed = JSON.parse(storedDomains) as PriorityDomain[]
+        if (Array.isArray(parsed)) {
+          setPriorityDomains(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi domeniile salvate local')
+      }
+    }
+
+    const storedRecommendations = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
+    if (storedRecommendations) {
+      try {
+        const parsed = JSON.parse(storedRecommendations) as Recommendation[]
+        if (Array.isArray(parsed)) {
+          setRecommendations(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi recomandarile salvate local')
+      }
+    }
+
+    const storedEmailTemplates = window.localStorage.getItem(EMAIL_TEMPLATES_STORAGE_KEY)
+    if (storedEmailTemplates) {
+      try {
+        const parsed = JSON.parse(storedEmailTemplates) as EmailTemplate[]
+        if (Array.isArray(parsed)) {
+          setEmailTemplates(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi template-urile email salvate local')
+      }
+    }
+
+    const storedEmailLog = window.localStorage.getItem(EMAIL_LOG_STORAGE_KEY)
+    if (storedEmailLog) {
+      try {
+        const parsed = JSON.parse(storedEmailLog) as EmailLog[]
+        if (Array.isArray(parsed)) {
+          setEmailLog(parsed)
+        }
+      } catch {
+        setError('Nu am putut citi emailurile generate salvate local')
+      }
+    }
+
+    const storedRegulation = window.localStorage.getItem(REGULATION_STORAGE_KEY)
+    if (storedRegulation) {
+      try {
+        const parsed = JSON.parse(storedRegulation) as RegulationContent
+        setRegulationContent({ ...initialRegulationContent, ...parsed })
+      } catch {
+        setError('Nu am putut citi regulamentul salvat local')
+      }
+    }
+
+    const storedSmtpSettings = window.localStorage.getItem(SMTP_SETTINGS_STORAGE_KEY)
+    if (storedSmtpSettings) {
+      try {
+        const parsed = JSON.parse(storedSmtpSettings) as SmtpSettings
+        setSmtpSettings({ ...initialSmtpSettings, ...parsed })
+      } catch {
+        setError('Nu am putut citi configurarea SMTP salvata local')
+      }
+    }
+
+    setHasLoadedStoredState(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(RECOMMENDATIONS_STORAGE_KEY, JSON.stringify(recommendations))
+  }, [hasLoadedStoredState, recommendations])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(DIRECTORS_STORAGE_KEY, JSON.stringify(directors))
+  }, [directors, hasLoadedStoredState])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(groups))
+  }, [groups, hasLoadedStoredState])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(DOMAINS_STORAGE_KEY, JSON.stringify(priorityDomains))
+  }, [hasLoadedStoredState, priorityDomains])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(EMAIL_TEMPLATES_STORAGE_KEY, JSON.stringify(emailTemplates))
+  }, [emailTemplates, hasLoadedStoredState])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(EMAIL_LOG_STORAGE_KEY, JSON.stringify(emailLog))
+  }, [emailLog, hasLoadedStoredState])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(REGULATION_STORAGE_KEY, JSON.stringify(regulationContent))
+  }, [hasLoadedStoredState, regulationContent])
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return
+    window.localStorage.setItem(SMTP_SETTINGS_STORAGE_KEY, JSON.stringify(smtpSettings))
+  }, [hasLoadedStoredState, smtpSettings])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === 'admin2024') {
-      if (loginRole === 'ed') {
-        setCurrentUser({ role: 'ed', name: 'Executive Director' })
-      } else {
-        if (!loginGrup) { setError('Selecteaza grupul'); return }
-        const dir = directors.find(d => d.grup === loginGrup)
-        setCurrentUser({ role: 'launch_director', name: dir?.name || 'Launch Director', grup: loginGrup })
-      }
-      setIsAuthenticated(true)
-      setError('')
-    } else {
+    const normalizedLoginName = loginName.trim().toLowerCase()
+    const director = directors.find((item) => item.name.toLowerCase() === normalizedLoginName)
+
+    if (!director) {
+      setError('Nu exista un utilizator configurat cu acest nume')
+      return
+    }
+
+    if (password !== director.temporaryPassword) {
       setError('Parola incorecta')
+      return
     }
+
+    setCurrentUser(director)
+    setIsAuthenticated(true)
+    setError('')
   }
 
-  const updateRecStatus = (id: number, status: RecStatus) => {
-    setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status } : r))
-    if (status === 'completed') {
-      const rec = recommendations.find(r => r.id === id)
-      if (rec) {
-        setPriorityDomains(prev => prev.map(d =>
-          d.grup === rec.grup && d.name === rec.domain && d.status === 'open'
-            ? { ...d, status: 'filled' as DomainStatus, filledBy: rec.to }
-            : d
-        ))
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword.length < 6) {
+      setError('Parola noua trebuie sa aiba minimum 6 caractere')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Parolele nu coincid')
+      return
+    }
+
+    if (!currentUser) return
+
+    const updatedUser = { ...currentUser, temporaryPassword: newPassword, mustChangePassword: false }
+    setDirectors((prev) => prev.map((director) => director.id === currentUser.id ? updatedUser : director))
+    setCurrentUser(updatedUser)
+    setNewPassword('')
+    setConfirmPassword('')
+    setError('')
+  }
+
+  const updateRecommendationStatus = async (id: number, status: RecommendationStatus) => {
+    const recommendation = recommendations.find((item) => item.id === id)
+
+    setRecommendations((prev) => prev.map((item) => item.id === id ? { ...item, status } : item))
+
+    if (!recommendation) {
+      return
+    }
+
+    await createEmailFromTemplate(status === 'member_bni' ? 'new_member_thanks' : 'status_update', recommendation, status)
+
+    setPriorityDomains((prev) => prev.map((domain) => {
+      const sameDomain = domain.group === recommendation.group && domain.name === recommendation.domain
+
+      if (!sameDomain) {
+        return domain
       }
-    }
-  }
 
-  const addDirector = () => {
-    if (!newDirector.name || !newDirector.email) return
-    setDirectors(prev => [...prev, { ...newDirector, id: prev.length + 1 }])
-    setNewDirector({ name: '', email: '', role: 'launch_director', regiune: '', grup: '' })
-    setShowAddDirector(false)
+      if (isDomainRecommended(status)) {
+        return {
+          ...domain,
+          status: 'filled' as DomainStatus,
+          filledBy: recommendation.from,
+          filledFromRecommendationId: recommendation.id,
+        }
+      }
+
+      if (domain.filledFromRecommendationId === recommendation.id) {
+        return {
+          ...domain,
+          status: 'open' as DomainStatus,
+          filledBy: undefined,
+          filledFromRecommendationId: undefined,
+        }
+      }
+
+      return domain
+    }))
   }
 
   const addDomain = () => {
-    if (!newDomain.name || !newDomain.grup) return
-    const grupDomains = priorityDomains.filter(d => d.grup === newDomain.grup)
-    if (grupDomains.length >= 5) { setError('Maxim 5 domenii per grup'); return }
-    setPriorityDomains(prev => [...prev, { ...newDomain, id: prev.length + 1, status: 'open' as DomainStatus }])
-    setNewDomain({ name: '', description: '', grup: '' })
+    if (!newDomain.name || !newDomain.group) return
+
+    if (!visibleGroupNames.has(newDomain.group)) {
+      setError('Nu ai acces la acest grup')
+      return
+    }
+
+    setPriorityDomains((prev) => [...prev, { ...newDomain, id: prev.length + 1, status: 'open' }])
+    setNewDomain({ name: '', description: '', group: '' })
     setShowAddDomain(false)
     setError('')
   }
 
+  const removeDomain = (id: number) => {
+    setPriorityDomains((prev) => prev.filter((domain) => domain.id !== id))
+  }
+
+  const addDirector = () => {
+    if (!newDirector.name || !newDirector.email) return
+    if (newDirector.role === 'executive_director' && newDirector.regions.length === 0) return
+    if (newDirector.role === 'launch_consultant' && !newDirector.group) return
+    if (!newDirector.temporaryPassword) return
+    setDirectors((prev) => [...prev, { ...newDirector, id: prev.length + 1, mustChangePassword: true }])
+    setNewDirector({ name: '', email: '', role: 'launch_consultant', temporaryPassword: '', regions: [], group: '' })
+    setShowAddDirector(false)
+    setError('')
+  }
+
   const addGroup = () => {
-    if (!newGroup.name || !newGroup.regiune) return
-    setGroups(prev => [...prev, { ...newGroup, status: 'in formare' }])
-    setNewGroup({ name: '', regiune: '', director: '' })
+    if (!newGroup.name || !newGroup.region) return
+    if (!newGroup.launchTargetMembers || newGroup.launchTargetMembers < 25) {
+      setError('Tinta de lansare nu poate fi mai mica de 25 de membri')
+      return
+    }
+    if (currentUser?.role === 'executive_director' && !getDirectorRegions(currentUser).includes(newGroup.region)) {
+      setError('Poti adauga grupuri doar in regiunile tale')
+      return
+    }
+    setGroups((prev) => [...prev, { ...newGroup, status: 'in formare' }])
+    setNewGroup({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
     setShowAddGroup(false)
   }
 
-  const removeDomain = (id: number) => {
-    setPriorityDomains(prev => prev.filter(d => d.id !== id))
+  const startEditGroup = (group: Group) => {
+    setEditingGroupName(group.name)
+    setEditingGroup({ ...group, active: group.active !== false })
+    setError('')
+  }
+
+  const cancelEditGroup = () => {
+    setEditingGroupName('')
+    setEditingGroup(null)
+    setError('')
+  }
+
+  const saveEditedGroup = () => {
+    if (!editingGroup || !editingGroupName) return
+    if (!editingGroup.name || !editingGroup.region) return
+    if (!editingGroup.launchTargetMembers || editingGroup.launchTargetMembers < 25) {
+      setError('Tinta de lansare nu poate fi mai mica de 25 de membri')
+      return
+    }
+    if (currentUser?.role === 'executive_director' && !getDirectorRegions(currentUser).includes(editingGroup.region)) {
+      setError('Poti muta grupuri doar in regiunile tale')
+      return
+    }
+
+    setGroups((prev) => prev.map((group) => group.name === editingGroupName ? editingGroup : group))
+    setPriorityDomains((prev) => prev.map((domain) => domain.group === editingGroupName ? { ...domain, group: editingGroup.name } : domain))
+    setRecommendations((prev) => prev.map((recommendation) => recommendation.group === editingGroupName ? { ...recommendation, group: editingGroup.name } : recommendation))
+    setDirectors((prev) => prev.map((director) => director.group === editingGroupName ? { ...director, group: editingGroup.name } : director))
+    cancelEditGroup()
+  }
+
+  const toggleGroupActive = (groupName: string) => {
+    setGroups((prev) => prev.map((group) => group.name === groupName ? { ...group, active: group.active === false } : group))
+  }
+
+  const startEditDirector = (director: Director) => {
+    setEditingDirectorId(director.id)
+    setEditingDirector({ ...director, regions: getDirectorRegions(director), mustChangePassword: director.mustChangePassword !== false })
+    setTemporaryPasswordInput('')
+    setError('')
+  }
+
+  const cancelEditDirector = () => {
+    setEditingDirectorId(null)
+    setEditingDirector(null)
+    setTemporaryPasswordInput('')
+    setError('')
+  }
+
+  const saveEditedDirector = () => {
+    if (!editingDirector) return
+    if (!editingDirector.name || !editingDirector.email) return
+    if (editingDirector.role === 'executive_director' && getDirectorRegions(editingDirector).length === 0) {
+      setError('Directorul executiv trebuie sa aiba cel putin o regiune configurata')
+      return
+    }
+    if (editingDirector.role === 'launch_consultant' && !editingDirector.group) {
+      setError('Directorul consultant trebuie sa aiba un grup configurat')
+      return
+    }
+
+    setDirectors((prev) => prev.map((director) => director.id === editingDirector.id ? editingDirector : director))
+    cancelEditDirector()
+  }
+
+  const setTemporaryPasswordForDirector = () => {
+    if (!editingDirector || !temporaryPasswordInput) return
+
+    setEditingDirector({
+      ...editingDirector,
+      temporaryPassword: temporaryPasswordInput,
+      mustChangePassword: true,
+    })
+    setTemporaryPasswordInput('')
+  }
+
+  const toggleRecommendationDetails = (id: number) => {
+    setOpenRecommendationIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full border-t-4 border-red-600">
-          <div className="text-center mb-6">
-            <span className="text-red-600 font-black text-3xl">BNI</span>
-            <h1 className="text-2xl font-bold text-gray-900 mt-2">Admin Panel</h1>
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3] px-4">
+        <div className="w-full max-w-lg rounded-lg border border-[#ded8ce] bg-white p-8 shadow-lg">
+          <div className="mb-6">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#c8102e]">BNI Gold Members</p>
+            <h1 className="mt-2 text-3xl font-black text-[#1f2326]">Admin competitie</h1>
+            <p className="mt-2 text-sm text-[#5f6469]">Autentificarea se face cu numele configurat si parola temporara primita.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm uppercase">Tip acces</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setLoginRole('ed')}
-                  className={`p-3 rounded border-2 text-sm font-semibold transition ${loginRole === 'ed' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  Director Executiv
-                  <span className="block text-xs font-normal mt-1">Acces pe regiune</span>
-                </button>
-                <button type="button" onClick={() => setLoginRole('launch_director')}
-                  className={`p-3 rounded border-2 text-sm font-semibold transition ${loginRole === 'launch_director' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  Director Lansare
-                  <span className="block text-xs font-normal mt-1">Acces pe grup</span>
-                </button>
-              </div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Prenume Nume</label>
+              <input
+                type="text"
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                className="w-full rounded-md border border-[#c9c3b8] px-4 py-2 text-sm focus:border-[#c8102e] focus:outline-none focus:ring-2 focus:ring-[#fff1f2]"
+                placeholder="Prenume Nume"
+              />
             </div>
-
-            {loginRole === 'launch_director' && (
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2 text-sm uppercase">Grupul tau</label>
-                <select value={loginGrup} onChange={e => setLoginGrup(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-600">
-                  <option value="">-- Selecteaza grup --</option>
-                  {groups.map(g => <option key={g.name} value={g.name}>{g.name} ({g.regiune})</option>)}
-                </select>
-              </div>
-            )}
 
             <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm uppercase">Parola</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-600"
-                placeholder="Introdu parola" />
+              <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Parola</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-[#c9c3b8] px-4 py-2 text-sm focus:border-[#c8102e] focus:outline-none focus:ring-2 focus:ring-[#fff1f2]"
+                placeholder="Introdu parola"
+              />
             </div>
 
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">{error}</div>}
+            {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
-            <button type="submit" className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-semibold">
+            <button type="submit" className="w-full rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white transition hover:bg-[#9f1239]">
               Autentificare
             </button>
           </form>
@@ -223,391 +718,875 @@ export default function AdminDashboard() {
     )
   }
 
-  const statusColors: Record<RecStatus, string> = {
-    pending: 'bg-amber-50 text-amber-700 border-amber-200',
-    in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-    completed: 'bg-green-50 text-green-700 border-green-200',
-    rejected: 'bg-red-50 text-red-700 border-red-200',
+  if (!currentUser) {
+    return null
   }
 
-  const statusLabels: Record<RecStatus, string> = {
-    pending: 'In asteptare',
-    in_progress: 'In lucru',
-    completed: 'Finalizata',
-    rejected: 'Respinsa',
-  }
+  if (currentUser.mustChangePassword !== false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3] px-4">
+        <div className="w-full max-w-lg rounded-lg border border-[#ded8ce] bg-white p-8 shadow-lg">
+          <div className="mb-6">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#c8102e]">BNI Gold Members</p>
+            <h1 className="mt-2 text-3xl font-black text-[#1f2326]">Schimba parola temporara</h1>
+            <p className="mt-2 text-sm text-[#5f6469]">La prima autentificare trebuie sa setezi o parola noua pentru contul tau.</p>
+          </div>
 
-  const stats = {
-    totalGroups: filteredGroups.length,
-    totalRecs: filteredRecommendations.length,
-    pendingRecs: filteredRecommendations.filter(r => r.status === 'pending').length,
-    completedRecs: filteredRecommendations.filter(r => r.status === 'completed').length,
-    openDomains: filteredDomains.filter(d => d.status === 'open').length,
-    filledDomains: filteredDomains.filter(d => d.status === 'filled').length,
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Parola noua</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-md border border-[#c9c3b8] px-4 py-2 text-sm focus:border-[#c8102e] focus:outline-none focus:ring-2 focus:ring-[#fff1f2]"
+                placeholder="Minimum 6 caractere"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Confirma parola</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-md border border-[#c9c3b8] px-4 py-2 text-sm focus:border-[#c8102e] focus:outline-none focus:ring-2 focus:ring-[#fff1f2]"
+                placeholder="Repeta parola noua"
+              />
+            </div>
+
+            {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+
+            <button type="submit" className="w-full rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white transition hover:bg-[#9f1239]">
+              Salveaza parola
+            </button>
+          </form>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Admin Header */}
-      <div className="bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-red-500 font-black text-xl">BNI</span>
-            <div>
-              <h1 className="font-bold">Admin Panel</h1>
-              <p className="text-xs text-gray-400">
-                {currentUser?.role === 'ed' ? 'Director Executiv — Toate regiunile' : `Director Lansare — ${currentUser?.grup}`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-300">{currentUser?.name}</span>
-            <button onClick={() => { setIsAuthenticated(false); setCurrentUser(null); setPassword('') }}
-              className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-1 overflow-x-auto">
-            {[
-              { key: 'overview', label: 'Sumar' },
-              { key: 'recommendations', label: 'Recomandari' },
-              { key: 'domains', label: 'Domenii Prioritare' },
-              ...(currentUser?.role === 'ed' ? [
-                { key: 'directors', label: 'Directori' },
-                { key: 'groups', label: 'Grupuri' },
-              ] : []),
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key as typeof activeTab)}
-                className={`px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${activeTab === tab.key ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* OVERVIEW */}
-        {activeTab === 'overview' && (
+    <div className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
+      <div className="border-b border-[#c8102e] bg-[#1f2326] text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-black text-[#ff4057]">BNI</span>
+              <h1 className="font-black">Admin competitie</h1>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              {currentUser.name}, {roleLabel(currentUser.role)}, {currentUser.role === 'admin' ? 'toate regiunile' : currentUser.role === 'executive_director' ? `Regiuni: ${accessLabel(currentUser)}` : currentUser.group}
+            </p>
+          </div>
+          <button
+            onClick={() => { setIsAuthenticated(false); setCurrentUser(null); setLoginName(''); setPassword('') }}
+            className="w-fit rounded-md bg-[#343a40] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#4b4f54]"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div className="border-b border-[#ded8ce] bg-white">
+        <div className="mx-auto grid max-w-7xl gap-2 px-4 py-3 sm:grid-cols-3 sm:px-6 lg:grid-cols-7 lg:px-8">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`rounded-md px-3 py-2 text-left text-sm font-black transition ${
+                activeTab === tab.key
+                  ? 'bg-[#c8102e] text-white'
+                  : 'bg-[#f7f6f3] text-[#5f6469] hover:bg-white hover:text-[#1f2326]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
               {[
-                { label: 'Grupuri', value: stats.totalGroups, color: 'text-gray-900' },
-                { label: 'Recomandari', value: stats.totalRecs, color: 'text-gray-900' },
-                { label: 'In asteptare', value: stats.pendingRecs, color: 'text-amber-600' },
-                { label: 'Finalizate', value: stats.completedRecs, color: 'text-green-600' },
-                { label: 'Domenii deschise', value: stats.openDomains, color: 'text-red-600' },
-                { label: 'Domenii ocupate', value: stats.filledDomains, color: 'text-green-600' },
-              ].map(s => (
-                <div key={s.label} className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
-                  <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+                { label: 'Grupuri', value: stats.groups },
+                { label: 'Recomandari', value: stats.recommendations },
+                { label: 'Noi', value: stats.pending },
+                { label: 'Membri BNI', value: stats.completed },
+                { label: 'Domenii libere', value: stats.openDomains },
+                { label: 'Domenii recomandate', value: stats.filledDomains },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-3xl font-black text-slate-950">{item.value}</p>
+                  <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-slate-500">{item.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Recent activity */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="font-bold text-gray-900 mb-4">Ultimele recomandari</h2>
-              <div className="space-y-3">
-                {filteredRecommendations.slice(0, 5).map(rec => (
-                  <div key={rec.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                    <div>
-                      <p className="font-medium text-gray-900">{rec.from} &rarr; {rec.to}</p>
-                      <p className="text-sm text-gray-500">{rec.domain} &middot; {rec.grup}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs font-semibold border ${statusColors[rec.status]}`}>
-                      {statusLabels[rec.status]}
-                    </span>
+            {newNotifications.length > 0 && (
+              <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="font-black text-[#1f2326]">Notificari recomandari noi</h2>
+                    <p className="text-sm font-semibold text-amber-800">
+                      Ai {newNotifications.length} recomandari care asteapta validare.
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <button
+                    onClick={() => setActiveTab('recommendations')}
+                    className="w-fit rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white"
+                  >
+                    Valideaza
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-xl font-black">Ierarhie grupuri</h2>
+                <div className="mt-4 space-y-3">
+                  {rankedGroups.map((group, index) => (
+                    <div key={group.name} className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 items-center justify-center rounded bg-slate-950 text-xs font-black text-white">#{index + 1}</span>
+                        <div>
+                          <p className="font-black">{group.name}</p>
+                          <p className="text-xs text-slate-500">{group.region}</p>
+                          <div className="mt-2 w-32">
+                            <div className="mb-1 flex justify-between text-[10px] font-black uppercase text-slate-500">
+                              <span>Lansare</span>
+                              <span>{group.recommendedMembers}/{group.launchTargetMembers}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={group.recommendedMembers}>
+                              <div className="h-full rounded-full bg-[#c8102e]" style={{ width: `${group.launchPercent}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {group.domains.slice(0, 6).map((domain) => (
+                          <div key={domain.id} title={`${domain.name} - ${domain.status === 'filled' ? domain.filledBy : 'Cautat'}`} className={`min-h-[58px] rounded-md border p-2 ${domain.status === 'filled' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <p className="line-clamp-2 text-[12px] font-black leading-4">{domain.name}</p>
+                            <p className={`mt-1 line-clamp-2 text-[10px] font-bold leading-3 ${domain.status === 'filled' ? 'text-emerald-700' : 'text-red-600'}`}>
+                              {domain.status === 'filled' ? domain.filledBy : 'Cautat'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-xl font-black">Top membri</h2>
+                <div className="mt-4 space-y-3">
+                  {memberLeaderboard.length === 0 && <p className="text-sm text-slate-500">Nu exista recomandari in aria ta.</p>}
+                  {memberLeaderboard.map((member, index) => (
+                    <div key={member.name} className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded bg-red-50 text-xs font-black text-red-700">{index + 1}</span>
+                        <div>
+                          <p className="text-sm font-black">{member.name}</p>
+                          <p className="text-[11px] font-black uppercase tracking-wide text-[#c8102e]">{member.group}</p>
+                          <p className="text-xs text-slate-500">{member.sent} trimise, {member.completed} membri BNI</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-black">{member.points}p</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           </div>
         )}
 
-        {/* RECOMMENDATIONS */}
         {activeTab === 'recommendations' && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Gestionare Recomandari</h2>
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <section>
+            <h2 className="mb-4 text-2xl font-black">Recomandari primite</h2>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
+                <table className="w-full min-w-[840px]">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">De la</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Catre</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Domeniu</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Grup</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Data</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Actiuni</th>
+                      {['De la', 'Catre', 'Domeniu', 'Grup', 'Data', 'Status', 'Actiuni'].map((head) => (
+                        <th key={head} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">{head}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRecommendations.map(rec => (
-                      <tr key={rec.id} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 font-medium">{rec.from}</td>
-                        <td className="py-3 px-4">{rec.to}</td>
-                        <td className="py-3 px-4 text-sm">{rec.domain}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500">{rec.grup}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500">{rec.date}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold border ${statusColors[rec.status]}`}>
-                            {statusLabels[rec.status]}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <select value={rec.status} onChange={e => updateRecStatus(rec.id, e.target.value as RecStatus)}
-                            className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-red-400">
-                            <option value="pending">In asteptare</option>
-                            <option value="in_progress">In lucru</option>
-                            <option value="completed">Finalizata</option>
-                            <option value="rejected">Respinsa</option>
-                          </select>
-                        </td>
-                      </tr>
+                    {visibleRecommendations.map((recommendation) => (
+                      <Fragment key={recommendation.id}>
+                        <tr className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => toggleRecommendationDetails(recommendation.id)}
+                              className="mr-2 rounded bg-slate-100 px-2 py-1 text-xs font-black text-slate-700 hover:bg-slate-200"
+                            >
+                              {openRecommendationIds.includes(recommendation.id) ? '-' : '+'}
+                            </button>
+                            <span className="font-semibold">{recommendation.from}</span>
+                          </td>
+                          <td className="px-4 py-3">{recommendation.to}</td>
+                          <td className="px-4 py-3 text-sm">{recommendation.domain}</td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{recommendation.group}</td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{recommendation.date}</td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded border px-2 py-1 text-xs font-black ${statusColors[recommendation.status]}`}>{statusLabels[recommendation.status]}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={recommendation.status}
+                              onChange={(e) => {
+                                void updateRecommendationStatus(recommendation.id, e.target.value as RecommendationStatus)
+                              }}
+                              className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-red-500 focus:outline-none"
+                            >
+                              <option value="new">Recomandare noua</option>
+                              <option value="recommendation_confirmed">Recomandare confirmata</option>
+                              <option value="invited_bni">Invitat BNI</option>
+                              <option value="member_bni">Membru BNI</option>
+                              <option value="rejected">Respinsa</option>
+                            </select>
+                          </td>
+                        </tr>
+                        {openRecommendationIds.includes(recommendation.id) && (
+                        <tr className="border-t border-slate-100 bg-slate-50/70">
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Membru care recomanda</p>
+                                <p className="mt-1 font-black text-slate-950">{recommendation.from}</p>
+                                <p className="mt-1 text-xs font-semibold text-[#c8102e]">{recommendation.recommendingGroup || 'Grup BNI necompletat'}</p>
+                                <p className="mt-2 text-xs text-slate-500">Telefon: <span className="font-semibold text-slate-800">{recommendation.recommenderPhone || 'Necompletat'}</span></p>
+                                <p className="text-xs text-slate-500">Email: <span className="font-semibold text-slate-800">{recommendation.recommenderEmail || 'Necompletat'}</span></p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Persoana recomandata</p>
+                                <p className="mt-1 font-black text-slate-950">{recommendation.to}</p>
+                                <p className="mt-2 text-xs text-slate-500">Telefon: <span className="font-semibold text-slate-800">{recommendation.recommendedPhone || 'Necompletat'}</span></p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Contact si acord</p>
+                                <p className="mt-1 whitespace-pre-wrap leading-5 text-slate-700">{recommendation.contactNotes || 'Nu exista informatii suplimentare despre contact.'}</p>
+                                <p className="mt-2 text-xs font-black text-slate-600">
+                                  {recommendation.consentConfirmed ? 'Confirmat: poate fi sunata de BNI local' : 'Acord contact neconfirmat in formular'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Potrivire si detalii</p>
+                                <p className="mt-1 whitespace-pre-wrap leading-5 text-slate-700">{recommendation.fitDetails || recommendation.details || 'Nu exista detalii suplimentare pentru aceasta recomandare.'}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* PRIORITY DOMAINS */}
         {activeTab === 'domains' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
+          <section>
+            <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Domenii Prioritare</h2>
-                <p className="text-sm text-gray-500">Top 5 domenii de interes per grup. Domeniile ocupate apar cu verde.</p>
+                <h2 className="text-2xl font-black">Domenii de interes</h2>
+                <p className="text-sm text-slate-500">Domeniile recomandate devin verzi si arata membrul care a trimis recomandarea.</p>
               </div>
-              <button onClick={() => setShowAddDomain(true)}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">
-                + Adauga domeniu
+              <button onClick={() => setShowAddDomain(true)} className="w-fit rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white transition hover:bg-red-700">
+                Adauga domeniu
               </button>
             </div>
 
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm mb-4">{error}</div>}
+            {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
-            {/* Add domain modal */}
             {showAddDomain && (
-              <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold mb-4">Adauga domeniu prioritar</h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <input placeholder="Nume domeniu (ex: Contabilitate)" value={newDomain.name}
-                    onChange={e => setNewDomain({ ...newDomain, name: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                  <input placeholder="Descriere scurta" value={newDomain.description}
-                    onChange={e => setNewDomain({ ...newDomain, description: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                  <select value={newDomain.grup} onChange={e => setNewDomain({ ...newDomain, grup: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400">
-                    <option value="">-- Grup --</option>
-                    {(currentUser?.role === 'launch_director' ? groups.filter(g => g.name === currentUser.grup) : groups)
-                      .map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
+              <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 font-black">Domeniu nou</h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <input value={newDomain.name} onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })} list="admin-domain-options" placeholder="Cauta sau selecteaza domeniul" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
+                    <datalist id="admin-domain-options">
+                      {predefinedDomains.map((domain) => <option key={domain} value={domain} />)}
+                    </datalist>
+                  </div>
+                  <input value={newDomain.description} onChange={(e) => setNewDomain({ ...newDomain, description: e.target.value })} placeholder="Specializare / nisare domeniu" className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
+                  <select value={newDomain.group} onChange={(e) => setNewDomain({ ...newDomain, group: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
+                    <option value="">Selecteaza grup</option>
+                    {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
                   </select>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={addDomain} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">Salveaza</button>
-                  <button onClick={() => { setShowAddDomain(false); setError('') }} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm">Anuleaza</button>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={addDomain} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
+                  <button onClick={() => { setShowAddDomain(false); setError('') }} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
                 </div>
               </div>
             )}
 
-            {/* Domains grouped by group */}
-            {(currentUser?.role === 'launch_director' ? [currentUser.grup!] : Array.from(new Set(groups.map(g => g.name)))).map(grupName => {
-              const grupDomains = priorityDomains.filter(d => d.grup === grupName)
-              const grup = groups.find(g => g.name === grupName)
-              return (
-                <div key={grupName} className="mb-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="font-bold text-gray-900">{grupName}</h3>
-                    <span className="text-xs text-gray-400">({grup?.regiune})</span>
-                    <span className="text-xs text-gray-400">{grupDomains.length}/5 domenii</span>
-                  </div>
-                  <div className="grid md:grid-cols-5 gap-3">
-                    {grupDomains.map(domain => (
-                      <div key={domain.id}
-                        className={`p-4 rounded-lg border-2 transition ${domain.status === 'filled'
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-white border-gray-200 hover:border-red-200'}`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className={`w-3 h-3 rounded-full mt-1 ${domain.status === 'filled' ? 'bg-green-500' : 'bg-red-400 animate-pulse'}`}></div>
-                          {currentUser?.role === 'ed' && domain.status === 'open' && (
-                            <button onClick={() => removeDomain(domain.id)} className="text-gray-400 hover:text-red-600 text-xs">&times;</button>
-                          )}
+            <div className="space-y-6">
+              {visibleGroups.map((group) => {
+                const groupDomains = priorityDomains.filter((domain) => domain.group === group.name)
+
+                return (
+                  <div key={group.name}>
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <h3 className="text-xl font-black">{group.name}</h3>
+                      <span className="text-sm font-semibold text-slate-500">({group.region})</span>
+                      <span className="text-sm font-semibold text-slate-400">{groupDomains.length} domenii configurate</span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {groupDomains.slice(0, 6).map((domain) => (
+                        <div key={domain.id} className={`min-h-[154px] rounded-lg border-2 p-4 ${domain.status === 'filled' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                          <div className="mb-4 flex items-center justify-between">
+                            <span className={`h-3 w-3 rounded-full ${domain.status === 'filled' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                            {domain.status === 'open' && (
+                              <button onClick={() => removeDomain(domain.id)} className="rounded px-2 text-lg leading-none text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Sterge ${domain.name}`}>
+                                x
+                              </button>
+                            )}
+                          </div>
+                          <h4 className="text-lg font-black text-slate-950">{domain.name}</h4>
+                          <p className="mt-2 text-sm leading-5 text-slate-500">{domain.description}</p>
+                          <p className={`mt-4 text-sm font-black ${domain.status === 'filled' ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}
+                          </p>
                         </div>
-                        <h4 className="font-bold text-sm text-gray-900">{domain.name}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{domain.description}</p>
-                        {domain.status === 'filled' && (
-                          <p className="text-xs text-green-700 font-semibold mt-2">Ocupat: {domain.filledBy}</p>
-                        )}
-                        {domain.status === 'open' && (
-                          <span className="inline-block text-xs text-red-600 font-semibold mt-2">Cautat</span>
-                        )}
-                      </div>
-                    ))}
-                    {grupDomains.length < 5 && Array.from({ length: 5 - grupDomains.length }).map((_, i) => (
-                      <div key={`empty-${i}`} className="p-4 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center">
-                        <span className="text-xs text-gray-400">Slot disponibil</span>
-                      </div>
-                    ))}
+                      ))}
+                      {groupDomains.length < 6 && Array.from({ length: 6 - groupDomains.length }).map((_, index) => (
+                        <div key={`empty-${index}`} className="flex min-h-[154px] items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-400">
+                          Slot disponibil
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </section>
         )}
 
-        {/* DIRECTORS (ED only) */}
-        {activeTab === 'directors' && currentUser?.role === 'ed' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Directori</h2>
-              <button onClick={() => setShowAddDirector(true)}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">
-                + Adauga director
-              </button>
+        {activeTab === 'directors' && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-black">Directori</h2>
+              {currentUser.role === 'admin' && (
+                <button onClick={() => setShowAddDirector(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga director</button>
+              )}
             </div>
 
-            {showAddDirector && (
-              <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold mb-4">Director nou</h3>
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <input placeholder="Nume complet" value={newDirector.name}
-                    onChange={e => setNewDirector({ ...newDirector, name: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                  <input placeholder="Email" value={newDirector.email}
-                    onChange={e => setNewDirector({ ...newDirector, email: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                  <select value={newDirector.role} onChange={e => setNewDirector({ ...newDirector, role: e.target.value as Role })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400">
-                    <option value="ed">Director Executiv</option>
-                    <option value="launch_director">Director Lansare</option>
+            {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+
+            {showAddDirector && currentUser.role === 'admin' && (
+              <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                  <input value={newDirector.name} onChange={(e) => setNewDirector({ ...newDirector, name: e.target.value })} placeholder="Nume complet" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <input value={newDirector.email} onChange={(e) => setNewDirector({ ...newDirector, email: e.target.value })} placeholder="Email" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <input value={newDirector.temporaryPassword} onChange={(e) => setNewDirector({ ...newDirector, temporaryPassword: e.target.value })} placeholder="Parola temporara" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <select value={newDirector.role} onChange={(e) => setNewDirector({ ...newDirector, role: e.target.value as DirectorRole })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="admin">Administrator</option>
+                    <option value="executive_director">Director Executiv</option>
+                    <option value="launch_consultant">Director Consultant Lansare</option>
                   </select>
-                  {newDirector.role === 'ed' ? (
-                    <select value={newDirector.regiune} onChange={e => setNewDirector({ ...newDirector, regiune: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400">
-                      <option value="">-- Regiune --</option>
-                      {allRegiuni.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                  {newDirector.role === 'admin' ? (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
+                  ) : newDirector.role === 'executive_director' ? (
+                    <div>
+                      <select
+                        multiple
+                        value={newDirector.regions}
+                        onChange={(e) => setNewDirector({
+                          ...newDirector,
+                          regions: Array.from(e.target.selectedOptions, (option) => option.value),
+                        })}
+                        className="min-h-[92px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                      </select>
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru mai multe regiuni.</p>
+                    </div>
                   ) : (
-                    <select value={newDirector.grup} onChange={e => setNewDirector({ ...newDirector, grup: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400">
-                      <option value="">-- Grup --</option>
-                      {groups.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
+                    <select value={newDirector.group} onChange={(e) => setNewDirector({ ...newDirector, group: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                      <option value="">Grup</option>
+                      {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
                     </select>
                   )}
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={addDirector} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">Salveaza</button>
-                  <button onClick={() => setShowAddDirector(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm">Anuleaza</button>
+                  <div className="flex gap-2">
+                    <button onClick={addDirector} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
+                    <button onClick={() => setShowAddDirector(false)} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Nume</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Rol</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Asignare</th>
+                    {['Nume', 'Email', 'Rol', 'Parola temporara', 'Acces configurat', 'Actiuni'].map((head) => <th key={head} className="px-4 py-3 text-left text-xs font-black uppercase text-slate-500">{head}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {directors.map(dir => (
-                    <tr key={dir.id} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium">{dir.name}</td>
-                      <td className="py-3 px-4 text-sm text-gray-500">{dir.email}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${dir.role === 'ed' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {dir.role === 'ed' ? 'Director Executiv' : 'Director Lansare'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-500">
-                        {dir.role === 'ed' ? `Regiunea ${dir.regiune}` : dir.grup}
-                      </td>
-                    </tr>
-                  ))}
+                  {visibleDirectors
+                    .map((director) => (
+                      <Fragment key={director.id}>
+                        <tr className="border-t border-slate-100">
+                          <td className="px-4 py-3 font-semibold">{director.name}</td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{director.email}</td>
+                          <td className="px-4 py-3 text-sm">{roleLabel(director.role)}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-700">
+                            {director.mustChangePassword !== false ? director.temporaryPassword : 'Parola setata'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{accessLabel(director)}</td>
+                          <td className="px-4 py-3">
+                            {currentUser.role === 'admin' ? (
+                              <button onClick={() => startEditDirector(director)} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-700">
+                                Editeaza
+                              </button>
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-500">Doar vizualizare</span>
+                            )}
+                          </td>
+                        </tr>
+                        {editingDirectorId === director.id && editingDirector && (
+                          <tr className="border-t border-slate-100 bg-slate-50">
+                            <td colSpan={6} className="px-4 py-4">
+                              <div className="grid gap-3 lg:grid-cols-5">
+                                <input value={editingDirector.name} onChange={(e) => setEditingDirector({ ...editingDirector, name: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                                <input value={editingDirector.email} onChange={(e) => setEditingDirector({ ...editingDirector, email: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                                <select value={editingDirector.role} onChange={(e) => setEditingDirector({ ...editingDirector, role: e.target.value as DirectorRole, group: '', regions: [] })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                  <option value="admin">Administrator</option>
+                                  <option value="executive_director">Director Executiv</option>
+                                  <option value="launch_consultant">Director Consultant Lansare</option>
+                                </select>
+                                {editingDirector.role === 'admin' ? (
+                                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
+                                ) : editingDirector.role === 'executive_director' ? (
+                                  <select
+                                    multiple
+                                    value={getDirectorRegions(editingDirector)}
+                                    onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined, group: undefined })}
+                                    className="min-h-[86px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                  >
+                                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                                  </select>
+                                ) : (
+                                  <select value={editingDirector.group || ''} onChange={(e) => setEditingDirector({ ...editingDirector, group: e.target.value, regions: [], region: undefined })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="">Grup</option>
+                                    {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                                  </select>
+                                )}
+                                <div className="space-y-2">
+                                  <input value={temporaryPasswordInput} onChange={(e) => setTemporaryPasswordInput(e.target.value)} placeholder="Parola temporara noua" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                                  <button onClick={setTemporaryPasswordForDirector} className="w-full rounded-md bg-[#c8102e] px-3 py-2 text-xs font-black text-white hover:bg-[#9f1239]">Seteaza temporara</button>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button onClick={saveEditedDirector} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza informatii</button>
+                                <button onClick={cancelEditDirector} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                                {editingDirector.mustChangePassword !== false && (
+                                  <span className="rounded-md bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">Va schimba parola la urmatorul login</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* GROUPS (ED only) */}
-        {activeTab === 'groups' && currentUser?.role === 'ed' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Grupuri BNI</h2>
-              <button onClick={() => setShowAddGroup(true)}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">
-                + Adauga grup
-              </button>
+        {activeTab === 'regulation' && currentUser.role === 'admin' && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-black">Regulament</h2>
+              <p className="mt-1 text-sm text-slate-500">Aceste campuri controleaza pagina publica de regulament.</p>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Eticheta
+                  <input value={regulationContent.eyebrow} onChange={(e) => setRegulationContent({ ...regulationContent, eyebrow: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu
+                  <input value={regulationContent.title} onChange={(e) => setRegulationContent({ ...regulationContent, title: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
+                  Subtitlu
+                  <textarea value={regulationContent.subtitle} onChange={(e) => setRegulationContent({ ...regulationContent, subtitle: e.target.value })} rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu obiectiv
+                  <input value={regulationContent.objectiveTitle} onChange={(e) => setRegulationContent({ ...regulationContent, objectiveTitle: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu punctaj
+                  <input value={regulationContent.scoringTitle} onChange={(e) => setRegulationContent({ ...regulationContent, scoringTitle: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
+                  Text obiectiv
+                  <textarea value={regulationContent.objectiveBody} onChange={(e) => setRegulationContent({ ...regulationContent, objectiveBody: e.target.value })} rows={4} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
+                  Punctaj, cate o linie pentru fiecare status
+                  <textarea value={regulationContent.scoringRows.join('\n')} onChange={(e) => setRegulationContent({ ...regulationContent, scoringRows: e.target.value.split('\n').filter(Boolean) })} rows={5} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu premii
+                  <input value={regulationContent.prizesTitle} onChange={(e) => setRegulationContent({ ...regulationContent, prizesTitle: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu validare
+                  <input value={regulationContent.transparencyTitle} onChange={(e) => setRegulationContent({ ...regulationContent, transparencyTitle: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
+                  Text premii
+                  <textarea value={regulationContent.prizesBody} onChange={(e) => setRegulationContent({ ...regulationContent, prizesBody: e.target.value })} rows={5} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
+                  Text validare
+                  <textarea value={regulationContent.transparencyBody} onChange={(e) => setRegulationContent({ ...regulationContent, transparencyBody: e.target.value })} rows={4} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'email_templates' && (currentUser.role === 'admin' || currentUser.role === 'executive_director') && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-black">Template email</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Aceste texte sunt folosite cand se genereaza emailuri pentru recomandari si schimbari de status.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              {emailTemplates.map((template) => (
+                <div key={template.type} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <h3 className="font-black text-slate-950">{template.title}</h3>
+                  <label className="mt-4 block text-xs font-black uppercase text-slate-500">
+                    Subiect
+                    <input
+                      value={template.subject}
+                      onChange={(e) => setEmailTemplates((prev) => prev.map((item) => item.type === template.type ? { ...item, subject: e.target.value } : item))}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                    />
+                  </label>
+                  <label className="mt-3 block text-xs font-black uppercase text-slate-500">
+                    Continut
+                    <textarea
+                      value={template.body}
+                      onChange={(e) => setEmailTemplates((prev) => prev.map((item) => item.type === template.type ? { ...item, body: e.target.value } : item))}
+                      rows={9}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                    />
+                  </label>
+                  <p className="mt-3 text-xs font-semibold text-slate-500">
+                    Token-uri: {'{{recommenderName}}'}, {'{{recommendedName}}'}, {'{{domain}}'}, {'{{group}}'}, {'{{status}}'}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-slate-950">Emailuri generate</h3>
+                  <p className="text-sm text-slate-500">Lista mesajelor pregatite de sistem pentru trimitere.</p>
+                </div>
+                <button onClick={() => setEmailLog([])} className="rounded-md bg-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-300">
+                  Goleste lista
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                {emailLog.length === 0 && <p className="text-sm text-slate-500">Nu exista emailuri generate inca.</p>}
+                {emailLog.slice().reverse().map((email) => (
+                  <div key={email.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase text-slate-500">{email.type}</p>
+                        <p className="mt-1 font-black text-slate-950">{email.subject}</p>
+                        <p className="text-sm text-slate-500">Catre: {email.to}</p>
+                      </div>
+                      <span className={`rounded px-2 py-1 text-xs font-black ${
+                        email.status === 'trimis'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : email.status === 'eroare'
+                            ? 'bg-red-50 text-red-700'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}>{email.status}</span>
+                    </div>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{email.body}</p>
+                    {email.error && <p className="mt-2 text-sm font-semibold text-red-700">Eroare: {email.error}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'smtp' && currentUser.role === 'admin' && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-black">Configurare SMTP</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Aceste setari sunt vizibile doar pentru Administrator si vor fi folosite pentru trimiterea emailurilor automate.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={applyHosterionSmtpPreset}
+                  className="rounded-md border border-[#c8102e] px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-red-50"
+                >
+                  Foloseste SMTP Hosterion
+                </button>
+                <button
+                  onClick={applyGmailSmtpPreset}
+                  className="rounded-md border border-slate-400 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Foloseste SMTP Gmail
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              {smtpSettings.host.toLowerCase().includes('gmail') && (
+                <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                  Gmail detectat. Parola SMTP trebuie sa fie un App Password (nu parola contului Google). Genereaza din Google Account → Security → 2-Step Verification → App passwords.
+                </div>
+              )}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  SMTP host
+                  <input
+                    value={smtpSettings.host}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, host: e.target.value })}
+                    placeholder="ex: mail.domeniu.ro"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Port
+                  <input
+                    value={smtpSettings.port}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, port: e.target.value })}
+                    placeholder="587"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Utilizator SMTP
+                  <input
+                    value={smtpSettings.username}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, username: e.target.value })}
+                    placeholder="email@domeniu.ro"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Parola SMTP
+                  <input
+                    value={smtpSettings.password}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, password: e.target.value })}
+                    type="password"
+                    placeholder="Parola contului SMTP"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Email expeditor
+                  <input
+                    value={smtpSettings.fromEmail}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })}
+                    placeholder="noreply@bnigoldmembers.ro"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Nume expeditor
+                  <input
+                    value={smtpSettings.fromName}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })}
+                    placeholder="BNI Gold Members Romania"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Reply-to
+                  <input
+                    value={smtpSettings.replyTo}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, replyTo: e.target.value })}
+                    placeholder="contact@bnigoldmembers.ro"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950"
+                  />
+                </label>
+                <label className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-black text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={smtpSettings.secure}
+                    onChange={(e) => setSmtpSettings({ ...smtpSettings, secure: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  Conexiune securizata SSL/TLS
+                </label>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    void testSmtpConnection()
+                  }}
+                  className="rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white hover:bg-[#a20d25]"
+                >
+                  Testeaza conexiunea SMTP
+                </button>
+                {smtpTestStatus.message && (
+                  <p className={`text-sm font-semibold ${
+                    smtpTestStatus.type === 'success'
+                      ? 'text-emerald-700'
+                      : smtpTestStatus.type === 'error'
+                        ? 'text-red-700'
+                        : 'text-slate-500'
+                  }`}>
+                    {smtpTestStatus.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                Setarile sunt folosite la schimbarea statusului unei recomandari pentru trimiterea emailului prin SMTP.
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'groups' && (currentUser.role === 'admin' || currentUser.role === 'executive_director') && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-black">{currentUser.role === 'admin' ? 'Toate grupurile' : 'Grupuri din regiune'}</h2>
+              <button onClick={() => setShowAddGroup(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga grup</button>
             </div>
 
             {showAddGroup && (
-              <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold mb-4">Grup nou</h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <input placeholder="Nume grup (ex: BNI ELITE)" value={newGroup.name}
-                    onChange={e => setNewGroup({ ...newGroup, name: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                  <select value={newGroup.regiune} onChange={e => setNewGroup({ ...newGroup, regiune: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400">
-                    <option value="">-- Regiune --</option>
-                    {allRegiuni.map(r => <option key={r} value={r}>{r}</option>)}
+              <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="grid gap-3 md:grid-cols-6">
+                  <input value={newGroup.name} onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })} placeholder="Ex: BNI ELITE" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <select value={newGroup.region} onChange={(e) => setNewGroup({ ...newGroup, region: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Regiune</option>
+                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                   </select>
-                  <input placeholder="Director responsabil" value={newGroup.director}
-                    onChange={e => setNewGroup({ ...newGroup, director: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-400" />
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={addGroup} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold">Salveaza</button>
-                  <button onClick={() => setShowAddGroup(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm">Anuleaza</button>
+                  <input value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Director responsabil" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <input
+                    type="number"
+                    min={0}
+                    value={newGroup.currentMembers}
+                    onChange={(e) => setNewGroup({ ...newGroup, currentMembers: Number(e.target.value) })}
+                    placeholder="Membri actuali"
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={25}
+                    value={newGroup.launchTargetMembers}
+                    onChange={(e) => setNewGroup({ ...newGroup, launchTargetMembers: Number(e.target.value) })}
+                    placeholder="Tinta lansare, min. 25 membri"
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={newGroup.active}
+                      onChange={(e) => setNewGroup({ ...newGroup, active: e.target.checked })}
+                      className="h-4 w-4 accent-[#c8102e]"
+                    />
+                    Activ in competitie
+                  </label>
+                  <div className="flex gap-2">
+                    <button onClick={addGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
+                    <button onClick={() => setShowAddGroup(false)} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groups.map(g => (
-                <div key={g.name} className="bg-white rounded-lg border border-gray-200 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                      <span className="text-red-600 font-bold text-xs">BNI</span>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {visibleGroups.map((group) => (
+                <div key={group.name} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  {editingGroupName === group.name && editingGroup ? (
+                    <div className="space-y-3">
+                      <input value={editingGroup.name} onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold" />
+                      <select value={editingGroup.region} onChange={(e) => setEditingGroup({ ...editingGroup, region: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                      </select>
+                      <input value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-xs font-black uppercase text-slate-500">
+                          Membri actuali
+                          <input type="number" min={0} value={editingGroup.currentMembers} onChange={(e) => setEditingGroup({ ...editingGroup, currentMembers: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                        </label>
+                        <label className="text-xs font-black uppercase text-slate-500">
+                          Tinta lansare
+                          <input type="number" min={25} value={editingGroup.launchTargetMembers} onChange={(e) => setEditingGroup({ ...editingGroup, launchTargetMembers: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                        </label>
+                      </div>
+                      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                        <input type="checkbox" checked={editingGroup.active !== false} onChange={(e) => setEditingGroup({ ...editingGroup, active: e.target.checked })} className="h-4 w-4 accent-[#c8102e]" />
+                        Activ in lista de competitie
+                      </label>
+                      <div className="flex gap-2">
+                        <button onClick={saveEditedGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
+                        <button onClick={cancelEditGroup} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900">{g.name}</h3>
-                      <p className="text-xs text-gray-500">Regiunea {g.regiune}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="text-gray-500">Director:</span> <span className="font-medium">{g.director || 'Neasignat'}</span></p>
-                    <p><span className="text-gray-500">Status:</span>
-                      <span className="ml-1 inline-flex items-center gap-1 text-amber-700 font-medium">
-                        <span className="w-2 h-2 bg-amber-500 rounded-full"></span>{g.status}
-                      </span>
-                    </p>
-                    <p><span className="text-gray-500">Domenii:</span> <span className="font-medium">{priorityDomains.filter(d => d.grup === g.name).length}/5</span></p>
-                    <p><span className="text-gray-500">Recomandari:</span> <span className="font-medium">{recommendations.filter(r => r.grup === g.name).length}</span></p>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black">{group.name}</h3>
+                          <p className="mt-1 text-sm text-slate-500">Regiunea {group.region}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase ${group.active === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
+                          {group.active === false ? 'Inactiv' : 'Activ'}
+                        </span>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm">
+                        <p><span className="text-slate-500">Persoana responsabila:</span> <span className="font-semibold">{group.director || 'Neasignat'}</span></p>
+                        <p><span className="text-slate-500">Domenii:</span> <span className="font-semibold">{priorityDomains.filter((domain) => domain.group === group.name).length} configurate</span></p>
+                        <p><span className="text-slate-500">Membri actuali:</span> <span className="font-semibold">{group.currentMembers}</span></p>
+                        <p><span className="text-slate-500">Tinta lansare:</span> <span className="font-semibold">{getRecommendedMemberCount(group, priorityDomains)}/{group.launchTargetMembers} membri</span></p>
+                        <div>
+                          <div className="h-2 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={getRecommendedMemberCount(group, priorityDomains)}>
+                            <div className="h-full rounded-full bg-[#c8102e]" style={{ width: `${getLaunchCompletionPercent(group, priorityDomains)}%` }} />
+                          </div>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">{getLaunchProgressLabel(group, priorityDomains)}</p>
+                        </div>
+                        <p><span className="text-slate-500">Recomandari:</span> <span className="font-semibold">{recommendations.filter((recommendation) => recommendation.group === group.name).length}</span></p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button onClick={() => startEditGroup(group)} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-700">Editeaza</button>
+                        <button onClick={() => toggleGroupActive(group.name)} className={`rounded-md px-3 py-2 text-xs font-black text-white ${group.active === false ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-500 hover:bg-slate-600'}`}>
+                          {group.active === false ? 'Activeaza' : 'Dezactiveaza'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   )
 }
