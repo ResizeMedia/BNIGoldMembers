@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
     const settings = body.smtpSettings
     const email = body.email
 
-    if (!settings?.host || !settings.port || !settings.username || !settings.password) {
+    const isLocalRelay = settings?.host === 'localhost' || settings?.host === '127.0.0.1'
+
+    if (!settings?.host || !settings.port || (!isLocalRelay && (!settings.username || !settings.password))) {
       return NextResponse.json(
         { success: false, error: 'Configurarea SMTP este incompleta' },
         { status: 400 }
@@ -74,10 +76,12 @@ export async function POST(request: NextRequest) {
       port,
       secure: settings.secure,
       ...(isStartTls ? { requireTLS: true } : {}),
-      auth: {
-        user: settings.username,
-        pass: settings.password,
-      },
+      ...(!isLocalRelay && settings.username ? {
+        auth: {
+          user: settings.username,
+          pass: settings.password,
+        },
+      } : {}),
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 20000,

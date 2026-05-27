@@ -305,6 +305,21 @@ export default function AdminDashboard() {
     }
   }
 
+  const applyLocalRelayPreset = () => {
+    setSmtpSettings((prev) => ({
+      ...prev,
+      host: 'localhost',
+      port: '25',
+      secure: false,
+      username: '',
+      password: '',
+    }))
+    setSmtpTestStatus({
+      type: 'idle',
+      message: 'Relay local Hosterion aplicat (localhost:25). Nu necesita autentificare. Emailul expeditor trebuie sa fie un cont valid pe server.',
+    })
+  }
+
   const applyHosterionSmtpPreset = () => {
     setSmtpSettings((prev) => ({
       ...prev,
@@ -1357,6 +1372,12 @@ export default function AdminDashboard() {
                 Aceste setari sunt vizibile doar pentru Administrator si vor fi folosite pentru trimiterea emailurilor automate.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={applyLocalRelayPreset}
+                  className="rounded-md border border-emerald-500 px-4 py-2 text-sm font-black text-emerald-700 hover:bg-emerald-50"
+                >
+                  Relay local Hosterion
+                </button>
                 <button
                   onClick={applyHosterionSmtpPreset}
                   className="rounded-md border border-[#c8102e] px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-red-50"
