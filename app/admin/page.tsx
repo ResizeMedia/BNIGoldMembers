@@ -1060,24 +1060,39 @@ export default function AdminDashboard() {
             {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
             {showAddDomain && (
-              <div id="add-domain-form" className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 font-black">Domeniu nou</h3>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div>
-                    <input value={newDomain.name} onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })} list="admin-domain-options" placeholder="Cauta sau selecteaza domeniul" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
-                    <datalist id="admin-domain-options">
-                      {predefinedDomains.map((domain) => <option key={domain} value={domain} />)}
-                    </datalist>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowAddDomain(false); setError('') } }}>
+                <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+                  <div className="mb-5 flex items-center justify-between">
+                    <h3 className="text-lg font-black text-slate-950">Domeniu nou</h3>
+                    <button onClick={() => { setShowAddDomain(false); setError('') }} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                   </div>
-                  <input value={newDomain.description} onChange={(e) => setNewDomain({ ...newDomain, description: e.target.value })} placeholder="Specializare / nisare domeniu" className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
-                  <select value={newDomain.group} onChange={(e) => setNewDomain({ ...newDomain, group: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
-                    <option value="">Selecteaza grup</option>
-                    {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
-                  </select>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <button onClick={addDomain} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
-                  <button onClick={() => { setShowAddDomain(false); setError('') }} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                  {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Domeniu</label>
+                      <input value={newDomain.name} onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })} list="admin-domain-options" placeholder="Cauta sau selecteaza domeniul" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
+                      <datalist id="admin-domain-options">
+                        {predefinedDomains.map((domain) => <option key={domain} value={domain} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Specializare / nisare</label>
+                      <input value={newDomain.description} onChange={(e) => setNewDomain({ ...newDomain, description: e.target.value })} placeholder="ex: Constructii rezidentiale, nu industriale" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Grup</label>
+                      <select value={newDomain.group} onChange={(e) => setNewDomain({ ...newDomain, group: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none">
+                        <option value="">Selecteaza grup</option>
+                        {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-5 flex gap-2">
+                    <button onClick={addDomain} className="flex-1 rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white hover:bg-[#9f1239]">Salveaza</button>
+                    <button onClick={() => { setShowAddDomain(false); setError('') }} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">Anuleaza</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1117,7 +1132,6 @@ export default function AdminDashboard() {
                           onClick={() => {
                             setNewDomain({ name: '', description: '', group: group.name })
                             setShowAddDomain(true)
-                            setTimeout(() => document.getElementById('add-domain-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
                           }}
                           className="flex min-h-[154px] w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-400 transition hover:border-[#c8102e] hover:bg-red-50 hover:text-[#c8102e]"
                         >

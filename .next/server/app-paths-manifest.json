@@ -1,15 +1,15 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/recommendations/route": "app/api/recommendations/route.js",
   "/admin/page": "app/admin/page.js",
-  "/api/members/route": "app/api/members/route.js",
   "/domains/page": "app/domains/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/icon.png/route": "app/icon.png/route.js",
+  "/api/members/route": "app/api/members/route.js",
   "/api/domains/route": "app/api/domains/route.js",
-  "/page": "app/page.js",
-  "/members/page": "app/members/page.js",
+  "/api/recommendations/route": "app/api/recommendations/route.js",
+  "/icon.png/route": "app/icon.png/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/regulament/page": "app/regulament/page.js",
+  "/members/page": "app/members/page.js",
   "/recommendations/page": "app/recommendations/page.js",
+  "/page": "app/page.js",
   "/api/send-email/route": "app/api/send-email/route.js"
 }
