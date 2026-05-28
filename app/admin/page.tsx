@@ -1060,7 +1060,7 @@ export default function AdminDashboard() {
             {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
             {showAddDomain && (
-              <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div id="add-domain-form" className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="mb-4 font-black">Domeniu nou</h3>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
@@ -1112,9 +1112,17 @@ export default function AdminDashboard() {
                         </div>
                       ))}
                       {groupDomains.length < 6 && Array.from({ length: 6 - groupDomains.length }).map((_, index) => (
-                        <div key={`empty-${index}`} className="flex min-h-[154px] items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-400">
-                          Slot disponibil
-                        </div>
+                        <button
+                          key={`empty-${index}`}
+                          onClick={() => {
+                            setNewDomain({ name: '', description: '', group: group.name })
+                            setShowAddDomain(true)
+                            setTimeout(() => document.getElementById('add-domain-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                          }}
+                          className="flex min-h-[154px] w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-400 transition hover:border-[#c8102e] hover:bg-red-50 hover:text-[#c8102e]"
+                        >
+                          + Adauga domeniu
+                        </button>
                       ))}
                     </div>
                   </div>
