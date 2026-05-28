@@ -1052,9 +1052,6 @@ export default function AdminDashboard() {
                 <h2 className="text-2xl font-black">Domenii de interes</h2>
                 <p className="text-sm text-slate-500">Domeniile recomandate devin verzi si arata membrul care a trimis recomandarea.</p>
               </div>
-              <button onClick={() => setShowAddDomain(true)} className="w-fit rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white transition hover:bg-red-700">
-                Adauga domeniu
-              </button>
             </div>
 
             {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
