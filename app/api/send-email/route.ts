@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
       host: settings.host,
       port,
       secure: settings.secure,
-      ...(isStartTls ? { requireTLS: true } : {}),
+      ...(isLocalRelay ? { ignoreTLS: true } : {}),
+      ...(!isLocalRelay && isStartTls ? { requireTLS: true } : {}),
       ...(!isLocalRelay && settings.username ? {
         auth: {
           user: settings.username,
