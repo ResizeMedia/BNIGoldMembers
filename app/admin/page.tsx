@@ -962,7 +962,32 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3 text-sm text-slate-500">{recommendation.group}</td>
                           <td className="px-4 py-3 text-sm text-slate-500">{recommendation.date}</td>
                           <td className="px-4 py-3">
-                            <span className={`rounded border px-2 py-1 text-xs font-black ${statusColors[recommendation.status]}`}>{statusLabels[recommendation.status]}</span>
+                            <div className="flex flex-col gap-1">
+                              <span className={`rounded border px-2 py-1 text-xs font-black ${statusColors[recommendation.status]}`}>{statusLabels[recommendation.status]}</span>
+                              {(() => {
+                                const logs = emailLog.filter((e) => e.recommendationId === recommendation.id)
+                                const last = logs[logs.length - 1]
+                                if (!last) return null
+                                if (last.status === 'trimis') return (
+                                  <span title={`Email trimis: ${last.subject}`} className="flex items-center gap-1 text-[10px] font-black text-emerald-600">
+                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    Notificat
+                                  </span>
+                                )
+                                if (last.status === 'eroare') return (
+                                  <span title={`Eroare email: ${last.error || ''}`} className="flex items-center gap-1 text-[10px] font-black text-red-500">
+                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    Email eroare
+                                  </span>
+                                )
+                                return (
+                                  <span className="flex items-center gap-1 text-[10px] font-black text-slate-400">
+                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    In asteptare
+                                  </span>
+                                )
+                              })()}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <select
