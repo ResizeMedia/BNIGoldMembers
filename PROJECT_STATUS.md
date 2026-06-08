@@ -1,8 +1,41 @@
 # BNI Gold Members Romania - Project Status
 
-**Project Date:** May 25, 2026  
+**Project Date:** May 27, 2026  
 **Framework:** Next.js 14 + React 18 + TypeScript  
-**Status:** ✅ FUNCTIONAL & DEPLOYABLE  
+**Status:** ✅ LIVE ON HOSTERION / ACTIVE ITERATION  
+
+---
+
+## Current Memory - May 27, 2026
+
+- Live site: `https://bnigoldmembers.resize-media.com/`
+- Workspace: `C:\CLAUDE\bni`
+- Production deploy is done by FTP to `/bnigoldmembers.resize-media.com`, then restart marker files are uploaded to `tmp/restart.txt` and `restart.txt`.
+- Admin login button is named `Login`.
+- Admin has collapsible backend menu with tabs: Sumar, Recomandari, Domenii, Directori, Grupuri, Regulament, Template email, SMTP.
+- SMTP configuration is visible only for Administrator.
+- Correct SMTP preset for Hosterion:
+  - Host: `lyssa.hosterion.net`
+  - Port: `465`
+  - SSL/TLS: enabled
+  - Username: full mailbox address, e.g. `name@resize-media.com`
+  - Password: mailbox SMTP password
+  - From email should be the same mailbox or a sender allowed by that mailbox.
+- `webmail.resize-media.com` connects, but its certificate is for `lyssa.hosterion.net`; use `lyssa.hosterion.net` to avoid certificate mismatch.
+- MX records pointing to Google are for inbound mail routing, not for the SMTP submission host used by the app.
+- If errors mention `142.251...` or IPv6 Google addresses, admin still has Gmail settings saved in browser local storage. Use `Admin > SMTP > Foloseste SMTP Hosterion`, then save/test with real mailbox credentials.
+- Live SMTP endpoint was tested with Hosterion host and fake credentials. Result reached authentication, meaning host/port/SSL were reachable; final success requires real SMTP credentials.
+- Email sending is triggered on recommendation status changes through `/api/send-email` using Nodemailer.
+- Email templates are editable in `Admin > Template email`:
+  - Confirmare trimitere recomandare in sistem
+  - Update status recomandare
+  - Multumesc pentru un membru nou
+- When status changes, the update-status template is used; for `Membru BNI`, the thank-you template is used.
+- Admin has a `Testeaza conexiunea SMTP` button and a `Foloseste SMTP Hosterion` preset button.
+- Recent verification:
+  - `npx tsc --noEmit` passes.
+  - `npx next build --experimental-app-only` passes.
+  - Known build warning: `app/page.tsx` uses `<img>` instead of Next `<Image>`.
 
 ---
 
@@ -26,6 +59,18 @@
 - [x] `GET /api/domains` - Fetch available domains
 - [x] `GET /api/recommendations` - Fetch recommendations
 - [x] `POST /api/recommendations` - Submit recommendation
+- [x] `POST /api/send-email` - Send SMTP email through configured provider
+
+### Competition Features
+- [x] Region/group access rules for directors
+- [x] Editable groups with launch target, current members, active/inactive status
+- [x] Group ordering by launch completion percentage
+- [x] Top 5 Givers with full leaderboard popup
+- [x] Romania map with county pins for groups
+- [x] Launched groups / Kick-off Party panel
+- [x] Regulations page with editable admin content
+- [x] Recommendation form with recommender contact data, group, phone, consent checkbox, and domain fit details
+- [x] Domains page listing all configured domains and target groups
 
 ### Configuration & Docs
 - [x] `README_BNI.md` - Project overview & features
@@ -43,14 +88,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Pages | 5 (Home + 4 features) |
-| API Routes | 3 (members, domains, recommendations) |
+| Pages | 6+ (Home, Performeri GOLD, Recommendations, Domains, Regulament, Admin) |
+| API Routes | 5 (members, domains, recommendations, send-email) |
 | Components | 1 (Navigation) |
 | Total Files | 50+ |
 | Build Size | ~5-10 MB |
 | Build Time | ~10-15 seconds |
 | Dev Reload | ~1-2 seconds |
-| Development Mode | ✅ Running on localhost:3000 |
+| Development Mode | ✅ Can run on localhost:3000 |
+| Production | ✅ Live on bnigoldmembers.resize-media.com |
 
 ---
 
@@ -62,12 +108,14 @@
 - ✅ `/recommendations` - Form renders & submits
 - ✅ `/domains` - Domain list displays
 - ✅ `/admin` - Protected dashboard with login
+- ✅ `/regulament` - Competition rules page displays
 
 ### APIs Verified
 - ✅ `GET /api/members` - Returns member list
 - ✅ `GET /api/domains` - Returns domain list
 - ✅ `GET /api/recommendations` - Returns recommendations
 - ✅ `POST /api/recommendations` - Accepts submissions
+- ✅ `POST /api/send-email` - Accepts SMTP config, validates, sends through Nodemailer
 
 ### Responsive Design
 - ✅ Desktop view (1280px+)
@@ -85,39 +133,35 @@ npm run build    # ✅ No errors
 npm run start    # ✅ Starts on port 3000
 ```
 
-### Deployment Options Ready
-- [x] **Vercel** - Recommended, easiest
-- [x] **Hosterion cPanel** - Resize Media server
-- [x] **Docker** - Containerized option
-- [x] **Node.js Runtime** - Manual setup guide
+### Deployment Option Used
+- [x] **Hosterion cPanel / Node.js Runtime** - Resize Media server
 
 ---
 
 ## 📋 Deployment Checklist
 
-- [ ] Choose deployment platform (Vercel / Hosterion)
-- [ ] Configure domain: `bnigoldmembers.resize-media.com`
+- [x] Choose deployment platform: Hosterion
+- [x] Configure domain: `bnigoldmembers.resize-media.com`
 - [ ] Set up `.env.local` with production values
 - [ ] Run `npm run build` 
 - [ ] Test production build locally
-- [ ] Deploy `.next/` and `public/` directories
-- [ ] Configure SSL certificate
+- [x] Deploy `.next/`, `app`, `components`, `lib`, `public`, config/package files
+- [x] Configure SSL certificate
 - [ ] Set up database (when ready)
-- [ ] Configure email notifications (future)
+- [x] Configure email notifications through SMTP settings in admin
 - [ ] Set up uptime monitoring
 - [ ] Update admin password (security)
 - [ ] Enable HTTPS redirect
 
 ---
 
-## 🔧 Admin Credentials (Change Before Production!)
+## 🔧 Admin / Access Notes
 
-**Current Dev Password:** `admin2024`
-
-**Action Required:**
-- [ ] Change admin password before deployment
-- [ ] Implement proper authentication system
-- [ ] Add user management later
+- Admin user exists in seed data and can configure directors, groups, domains, regulations, email templates, and SMTP.
+- Directors can access only configured region/group data.
+- Executive directors can have multiple regions assigned.
+- First-login password change flow exists for temporary passwords.
+- Do not expose credentials in public docs or final user-facing messages.
 
 ---
 
@@ -168,11 +212,15 @@ npm run start
 
 ## ✨ Features Implemented
 
-### Fully Functional
-- ✅ Member browsing
-- ✅ Recommendation submission
-- ✅ Domain view/request
-- ✅ Admin dashboard
+### Fully Functional / Recently Added
+- ✅ Public competition dashboard
+- ✅ Top Givers ranking and full ranking modal
+- ✅ Group launch progress bars
+- ✅ Active/inactive groups
+- ✅ Editable groups/directors/domains/regulations/templates
+- ✅ Recommendation submission and status flow
+- ✅ SMTP setup and email template flow
+- ✅ BNI branding and page icon
 - ✅ Responsive design
 - ✅ Form validation
 - ✅ API endpoints
@@ -180,11 +228,11 @@ npm run start
 
 ### Future Enhancements
 - [ ] Database integration (MySQL)
-- [ ] User authentication system
-- [ ] Email notifications
+- [ ] Persist admin data server-side instead of browser localStorage
+- [ ] Harden authentication/session storage
+- [ ] Confirm SMTP with real mailbox credentials and end-to-end email delivery
 - [ ] Member profiles with details
 - [ ] Recommendation history/tracking
-- [ ] Group management
 - [ ] Advanced analytics
 - [ ] Mobile app
 
@@ -249,8 +297,8 @@ npm run start
 
 ## 🎉 Project Complete!
 
-**Last Update:** May 25, 2026  
-**Version:** 1.0.0  
-**Status:** Ready for Production  
+**Last Update:** May 27, 2026  
+**Version:** 1.0.0+  
+**Status:** Live on Hosterion / continuing product iteration  
 
 All core features implemented and tested. Application is fully functional and ready for deployment to bnigoldmembers.resize-media.com

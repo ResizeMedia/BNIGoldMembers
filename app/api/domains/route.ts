@@ -46,7 +46,7 @@ export async function GET() {
       data: domains,
       total: domains.length
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch domains' },
       { status: 500 }

@@ -13,14 +13,14 @@ const recommendations = [
   }
 ]
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     return NextResponse.json({
       success: true,
       data: recommendations,
       total: recommendations.length
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch recommendations' },
       { status: 500 }
@@ -49,10 +49,18 @@ export async function POST(request: NextRequest) {
       id: recommendations.length + 1,
       from: body.recommendingMember,
       to: body.recommendedMember,
+      group: body.group,
+      domain: body.domain,
+      recommendingGroup: body.recommendingGroup,
+      recommenderPhone: body.recommenderPhone,
+      recommenderEmail: body.recommenderEmail,
+      recommendedPhone: body.recommendedPhone,
+      contactNotes: body.contactNotes,
+      consentConfirmed: body.consentConfirmed,
       description: body.businessDescription,
       details: body.referralDetails,
       date: new Date().toISOString().split('T')[0],
-      status: 'pending'
+      status: 'new'
     }
 
     recommendations.push(newRecommendation)
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
       data: newRecommendation,
       message: 'Recommendation submitted successfully'
     }, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to submit recommendation' },
       { status: 500 }

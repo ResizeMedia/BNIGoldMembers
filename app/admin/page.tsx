@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { predefinedDomains } from '@/lib/domain-options'
+import LaunchSeats from '@/components/LaunchSeats'
 import {
   Director,
   DirectorRole,
@@ -22,10 +23,12 @@ import {
   RECOMMENDATIONS_STORAGE_KEY,
   SMTP_SETTINGS_STORAGE_KEY,
   SmtpSettings,
+  getActiveSlotDomains,
   getDirectorRegions,
   getGroupsForDirector,
   getLaunchCompletionPercent,
   getLaunchProgressLabel,
+  getLaunchSeats,
   getMemberLeaderboard,
   getRecommendedMemberCount,
   initialDirectors,
@@ -119,6 +122,7 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
   const [directors, setDirectors] = useState<Director[]>(initialDirectors)
+  const [directorsLoadedFromServer, setDirectorsLoadedFromServer] = useState(false)
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
   const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
@@ -174,10 +178,26 @@ export default function AdminDashboard() {
         launchLabel: getLaunchProgressLabel(group, priorityDomains),
         recommendedMembers: getRecommendedMemberCount(group, priorityDomains),
         domains: priorityDomains.filter((domain) => domain.group === group.name),
+        slotDomains: getActiveSlotDomains(group, priorityDomains),
+        seats: getLaunchSeats(group, priorityDomains),
         recommendations: recommendations.filter((recommendation) => recommendation.group === group.name),
       }))
       .sort((a, b) => b.launchPercent - a.launchPercent || b.recommendedMembers - a.recommendedMembers || a.name.localeCompare(b.name)),
     [visibleGroups, recommendations, priorityDomains]
+  )
+
+  const domainsTabData = useMemo(
+    () => visibleGroups.map((group) => {
+      const groupDomains = priorityDomains.filter((domain) => domain.group === group.name)
+      return {
+        group,
+        groupDomains,
+        slotDomains: getActiveSlotDomains(group, priorityDomains),
+        seats: getLaunchSeats(group, priorityDomains),
+        replacedDomains: groupDomains.filter((domain) => domain.inSlots === false && domain.filledFromRecommendationId != null),
+      }
+    }),
+    [visibleGroups, priorityDomains]
   )
 
   const memberLeaderboard = useMemo(() => getMemberLeaderboard(visibleRecommendations).slice(0, 8), [visibleRecommendations])
@@ -465,6 +485,36 @@ export default function AdminDashboard() {
     window.localStorage.setItem(DIRECTORS_STORAGE_KEY, JSON.stringify(directors))
   }, [directors, hasLoadedStoredState])
 
+  // Directors are the source of truth on the server so password resets propagate
+  // across browsers. Load from the API on mount; if it fails we silently keep the
+  // localStorage-backed directors (no regression) and never write back.
+  useEffect(() => {
+    let active = true
+    fetch('/api/directors')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad status'))))
+      .then((payload) => {
+        if (active && payload?.success && Array.isArray(payload.data)) {
+          setDirectors(payload.data as Director[])
+          setDirectorsLoadedFromServer(true)
+        }
+      })
+      .catch(() => {
+        // Server unreachable → stay in localStorage-only mode.
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!directorsLoadedFromServer) return
+    fetch('/api/directors', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(directors),
+    }).catch(() => {
+      // Best-effort; localStorage copy already kept as fallback.
+    })
+  }, [directors, directorsLoadedFromServer])
+
   useEffect(() => {
     if (!hasLoadedStoredState) return
     window.localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(groups))
@@ -571,6 +621,7 @@ export default function AdminDashboard() {
           status: 'open' as DomainStatus,
           filledBy: undefined,
           filledFromRecommendationId: undefined,
+          inSlots: true,
         }
       }
 
@@ -586,7 +637,10 @@ export default function AdminDashboard() {
       return
     }
 
-    setPriorityDomains((prev) => [...prev, { ...newDomain, id: prev.length + 1, status: 'open' }])
+    setPriorityDomains((prev) => {
+      const nextId = prev.reduce((max, domain) => Math.max(max, domain.id), 0) + 1
+      return [...prev, { ...newDomain, id: nextId, status: 'open' as DomainStatus }]
+    })
     setNewDomain({ name: '', description: '', group: '' })
     setShowAddDomain(false)
     setError('')
@@ -596,12 +650,24 @@ export default function AdminDashboard() {
     setPriorityDomains((prev) => prev.filter((domain) => domain.id !== id))
   }
 
+  const replaceFilledDomain = (id: number) => {
+    const domain = priorityDomains.find((item) => item.id === id)
+    if (domain && !window.confirm(`Scoti "${domain.name}" de pe board? Ramane numarat ca membru validat in checklist si poate fi readus oricand.`)) {
+      return
+    }
+    setPriorityDomains((prev) => prev.map((item) => item.id === id ? { ...item, inSlots: false } : item))
+  }
+
+  const restoreReplacedDomain = (id: number) => {
+    setPriorityDomains((prev) => prev.map((item) => item.id === id ? { ...item, inSlots: true } : item))
+  }
+
   const addDirector = () => {
     if (!newDirector.name || !newDirector.email) return
     if (newDirector.role === 'executive_director' && newDirector.regions.length === 0) return
     if (newDirector.role === 'launch_consultant' && !newDirector.group) return
     if (!newDirector.temporaryPassword) return
-    setDirectors((prev) => [...prev, { ...newDirector, id: prev.length + 1, mustChangePassword: true }])
+    setDirectors((prev) => [...prev, { ...newDirector, id: prev.reduce((max, director) => Math.max(max, director.id), 0) + 1, mustChangePassword: true }])
     setNewDirector({ name: '', email: '', role: 'launch_consultant', temporaryPassword: '', regions: [], group: '' })
     setShowAddDirector(false)
     setError('')
@@ -893,15 +959,18 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {group.domains.slice(0, 6).map((domain) => (
-                          <div key={domain.id} title={`${domain.name} - ${domain.status === 'filled' ? domain.filledBy : 'Cautat'}`} className={`min-h-[58px] rounded-md border p-2 ${domain.status === 'filled' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                            <p className="line-clamp-2 text-[12px] font-black leading-4">{domain.name}</p>
-                            <p className={`mt-1 line-clamp-2 text-[10px] font-bold leading-3 ${domain.status === 'filled' ? 'text-emerald-700' : 'text-red-600'}`}>
-                              {domain.status === 'filled' ? domain.filledBy : 'Cautat'}
-                            </p>
-                          </div>
-                        ))}
+                      <div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          {group.slotDomains.map((domain) => (
+                            <div key={domain.id} title={`${domain.name} - ${domain.status === 'filled' ? domain.filledBy : 'Cautat'}`} className={`min-h-[58px] rounded-md border p-2 ${domain.status === 'filled' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                              <p className="line-clamp-2 text-[12px] font-black leading-4">{domain.name}</p>
+                              <p className={`mt-1 line-clamp-2 text-[10px] font-bold leading-3 ${domain.status === 'filled' ? 'text-emerald-700' : 'text-red-600'}`}>
+                                {domain.status === 'filled' ? domain.filledBy : 'Cautat'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        <LaunchSeats seats={group.seats} showLegend />
                       </div>
                     </div>
                   ))}
@@ -1095,10 +1164,7 @@ export default function AdminDashboard() {
             )}
 
             <div className="space-y-6">
-              {visibleGroups.map((group) => {
-                const groupDomains = priorityDomains.filter((domain) => domain.group === group.name)
-
-                return (
+              {domainsTabData.map(({ group, groupDomains, slotDomains, seats, replacedDomains }) => (
                   <div key={group.name}>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <h3 className="text-xl font-black">{group.name}</h3>
@@ -1106,7 +1172,7 @@ export default function AdminDashboard() {
                       <span className="text-sm font-semibold text-slate-400">{groupDomains.length} domenii configurate</span>
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
-                      {groupDomains.slice(0, 6).map((domain) => (
+                      {slotDomains.map((domain) => (
                         <div key={domain.id} className={`min-h-[154px] rounded-lg border-2 p-4 ${domain.status === 'filled' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
                           <div className="mb-4 flex items-center justify-between">
                             <span className={`h-3 w-3 rounded-full ${domain.status === 'filled' ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -1121,9 +1187,17 @@ export default function AdminDashboard() {
                           <p className={`mt-4 text-sm font-black ${domain.status === 'filled' ? 'text-emerald-700' : 'text-red-600'}`}>
                             {domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}
                           </p>
+                          {domain.status === 'filled' && (
+                            <button
+                              onClick={() => replaceFilledDomain(domain.id)}
+                              className="mt-3 w-full rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                            >
+                              Inlocuieste domeniul
+                            </button>
+                          )}
                         </div>
                       ))}
-                      {groupDomains.length < 6 && Array.from({ length: 6 - groupDomains.length }).map((_, index) => (
+                      {slotDomains.length < 6 && Array.from({ length: 6 - slotDomains.length }).map((_, index) => (
                         <button
                           key={`empty-${index}`}
                           onClick={() => {
@@ -1136,9 +1210,31 @@ export default function AdminDashboard() {
                         </button>
                       ))}
                     </div>
+                    {replacedDomains.length > 0 && (
+                      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Domenii inlocuite (numarate ca membri validati)</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {replacedDomains.map((domain) => (
+                            <div key={domain.id} className="flex items-center gap-2 rounded-md border border-emerald-300 bg-white px-3 py-2">
+                              <span className="text-sm font-black text-slate-950">{domain.name}</span>
+                              <span className="text-xs font-semibold text-emerald-700">{domain.filledBy}</span>
+                              <button
+                                onClick={() => restoreReplacedDomain(domain.id)}
+                                className="rounded border border-emerald-300 px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
+                              >
+                                Readu pe board
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-500">Progres lansare ({group.launchTargetMembers} locuri)</p>
+                      <LaunchSeats seats={seats} showLegend />
+                    </div>
                   </div>
-                )
-              })}
+              ))}
             </div>
           </section>
         )}
@@ -1296,6 +1392,14 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-black uppercase text-slate-500 lg:col-span-2">
                   Subtitlu
                   <textarea value={regulationContent.subtitle} onChange={(e) => setRegulationContent({ ...regulationContent, subtitle: e.target.value })} rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Titlu perioada campaniei
+                  <input value={regulationContent.periodTitle} onChange={(e) => setRegulationContent({ ...regulationContent, periodTitle: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
+                </label>
+                <label className="block text-xs font-black uppercase text-slate-500">
+                  Durata campaniei
+                  <textarea value={regulationContent.periodBody} onChange={(e) => setRegulationContent({ ...regulationContent, periodBody: e.target.value })} rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-950" />
                 </label>
                 <label className="block text-xs font-black uppercase text-slate-500">
                   Titlu obiectiv
@@ -1621,7 +1725,7 @@ export default function AdminDashboard() {
                       <input value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-xs font-black uppercase text-slate-500">
-                          Membri actuali
+                          Membri deja validati
                           <input type="number" min={0} value={editingGroup.currentMembers} onChange={(e) => setEditingGroup({ ...editingGroup, currentMembers: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
                         </label>
                         <label className="text-xs font-black uppercase text-slate-500">

@@ -1,152 +1,366 @@
-import Link from 'next/link'
+'use client'
 
-const grupuriInFormare = [
-  {
-    regiune: 'Cluj',
-    grupuri: [
-      { name: 'BNI HEALTH', director: 'Adrian Covasa', rol: 'Launch Director', status: 'in formare' },
-    ]
-  },
-  {
-    regiune: 'Salaj',
-    grupuri: [
-      { name: 'BNI MAGNUM OPUS', director: 'Calin Hirza', rol: 'Launch Director', status: 'in formare' },
-    ]
-  },
-  {
-    regiune: 'Timis',
-    grupuri: [
-      { name: 'BNI GOLD', director: 'Adina Arjoca', rol: 'Launch Director', status: 'in formare' },
-    ]
-  },
-]
+import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import LaunchSeats from '@/components/LaunchSeats'
+import {
+  DOMAINS_STORAGE_KEY,
+  GROUPS_STORAGE_KEY,
+  Group,
+  PriorityDomain,
+  RECOMMENDATIONS_STORAGE_KEY,
+  Recommendation,
+  getActiveSlotDomains,
+  getLaunchCompletionPercent,
+  getLaunchProgressLabel,
+  getLaunchSeats,
+  getMemberLeaderboard,
+  getRecommendedMemberCount,
+  isGroupActive,
+  initialGroups,
+  initialPriorityDomains,
+  initialRecommendations,
+} from '@/lib/bni-data'
+
+const mapPositions: Record<string, string> = {
+  Arges:             'left-[47%] top-[63.3%]',
+  Bihor:             'left-[17.7%] top-[41%]',
+  'Braila-Galati':   'left-[74.8%] top-[63.9%]',
+  'Galati-Braila':   'left-[76%] top-[52.5%]',
+  Brasov:            'left-[51%] top-[50.1%]',
+  Bucuresti:         'left-[60.2%] top-[76%]',
+  Buzau:             'left-[65%] top-[60%]',
+  Cluj:              'left-[35.2%] top-[32.6%]',
+  Constanta:         'left-[81.9%] top-[80.4%]',
+  Iasi:              'left-[70.6%] top-[23.8%]',
+  Maramures:         'left-[38.6%] top-[15.8%]',
+  Mures:             'left-[45.2%] top-[36.6%]',
+  Prahova:           'left-[58%] top-[62.9%]',
+  Salaj:             'left-[31.8%] top-[25%]',
+  Sibiu:             'left-[41.8%] top-[49.5%]',
+  Timis:             'left-[11.8%] top-[52%]',
+  Tulcea:            'left-[83.4%] top-[65.4%]',
+  Valcea:            'left-[40.5%] top-[62.6%]',
+}
+
+const kickoffDatesByGroup: Record<string, string> = {
+  'BNI Future': 'Data in confirmare',
+  'BNI Green Light': 'Data in confirmare',
+  'BNI Vision': 'Data in confirmare',
+}
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-red-700 via-red-600 to-red-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center">
-            <h1 className="text-5xl font-black mb-4 tracking-tight">
-              BNI Gold Members Romania
-            </h1>
-            <p className="text-xl text-red-100 max-w-2xl mx-auto">
-              Conectam membrii, impartasim recomandari, construim relatii de afaceri
-            </p>
-          </div>
-        </div>
-      </div>
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
+  const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false)
+  const [groups, setGroups] = useState<Group[]>(initialGroups)
+  const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
 
-      {/* Grupuri in Formare - SECTIUNEA PRINCIPALA */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-            <h2 className="text-3xl font-bold text-gray-900">Grupuri in Formare</h2>
-          </div>
-          <p className="text-gray-600 ml-6">
-            Grupuri BNI noi, organizate pe regiuni. Fiecare grup este coordonat de un Director de Lansare.
+  useEffect(() => {
+    const storedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
+    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
+    const storedRecommendations = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
+
+    if (storedGroups) {
+      try {
+        const parsed = JSON.parse(storedGroups) as Group[]
+        if (Array.isArray(parsed)) setGroups(parsed)
+      } catch {
+        setGroups(initialGroups)
+      }
+    }
+
+    if (storedDomains) {
+      try {
+        const parsed = JSON.parse(storedDomains) as PriorityDomain[]
+        if (Array.isArray(parsed)) setPriorityDomains(parsed)
+      } catch {
+        setPriorityDomains(initialPriorityDomains)
+      }
+    }
+
+    if (storedRecommendations) {
+      try {
+        const parsed = JSON.parse(storedRecommendations) as Recommendation[]
+        if (Array.isArray(parsed)) setRecommendations(parsed)
+      } catch {
+        setRecommendations(initialRecommendations)
+      }
+    }
+  }, [])
+
+  const rankedGroups = useMemo(() => groups
+    .filter(isGroupActive)
+    .map((group) => ({
+      ...group,
+      launchPercent: getLaunchCompletionPercent(group, priorityDomains),
+      launchLabel: getLaunchProgressLabel(group, priorityDomains),
+      recommendedMembers: getRecommendedMemberCount(group, priorityDomains),
+      slotDomains: getActiveSlotDomains(group, priorityDomains),
+      seats: getLaunchSeats(group, priorityDomains),
+    }))
+    .sort((a, b) => b.launchPercent - a.launchPercent || b.recommendedMembers - a.recommendedMembers || a.name.localeCompare(b.name)), [groups, priorityDomains, recommendations])
+
+  const filteredGroups = selectedRegion ? rankedGroups.filter((group) => group.region === selectedRegion) : rankedGroups
+  const launchedGroups = rankedGroups.filter((group) => group.recommendedMembers >= group.launchTargetMembers || group.status.toLowerCase().includes('lansat'))
+  const regionCounts = rankedGroups.reduce<Record<string, number>>((acc, group) => {
+    acc[group.region] = (acc[group.region] || 0) + 1
+    return acc
+  }, {})
+
+  const totalRecommendations = recommendations.length
+  const filledDomains = priorityDomains.filter((domain) => domain.status === 'filled').length
+  const memberLeaders = getMemberLeaderboard(recommendations)
+  const visibleMemberLeaders = memberLeaders.slice(0, 5)
+
+  return (
+    <main className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
+      <section className="border-b border-[#9f1239] bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
+        <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">BNI Gold Members Romania</h1>
+          <p className="mx-auto mt-4 max-w-3xl text-lg font-medium text-white/95">
+            Conectam membrii, impartasim recomandari, construim relatii de afaceri.
+          </p>
+          <p className="mx-auto mt-3 max-w-4xl text-sm font-semibold text-white/85">
+            Competitia recomandarilor pentru grupurile in formare arata cine ajuta fiecare grup sa ajunga mai aproape de lansare.
           </p>
         </div>
+      </section>
 
-        <div className="space-y-6">
-          {grupuriInFormare.map((regiune) => (
-            <div key={regiune.regiune} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-gray-900 text-white px-6 py-3 flex items-center gap-3">
-                <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                </svg>
-                <h3 className="text-lg font-bold uppercase tracking-wider">Regiunea {regiune.regiune}</h3>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {regiune.grupuri.map((grup) => (
-                  <div key={grup.name} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                        <span className="text-red-600 font-bold text-sm">BNI</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-lg">{grup.name}</h4>
-                        <p className="text-sm text-gray-500">
-                          <span className="text-red-600 font-medium">{grup.rol}</span> &mdash; {grup.director}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold border border-amber-200">
-                        <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-                        In Formare
-                      </span>
-                      <Link
-                        href={`/recommendations?group=${encodeURIComponent(grup.name)}`}
-                        className="text-red-600 hover:text-red-800 text-sm font-semibold"
-                      >
-                        Detalii &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <section className="border-b border-[#ded8ce] bg-white">
+        <div className="mx-auto grid max-w-7xl gap-2 px-4 py-3 sm:grid-cols-3 sm:px-6 lg:px-8">
+          {[
+            { label: 'Grupuri in lansare', value: rankedGroups.length },
+            { label: 'Persoane recomandate', value: totalRecommendations },
+            { label: 'Colegi noi', value: filledDomains },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center justify-between rounded-md border border-[#ded8ce] bg-[#f7f6f3] px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-wide text-[#5f6469]">{item.label}</p>
+              <p className="text-2xl font-black text-[#c8102e]">{item.value}</p>
             </div>
           ))}
         </div>
+      </section>
 
-        {/* Info box for directors */}
-        <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </div>
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-2 lg:px-8">
+        <div className="rounded-lg border border-[#ded8ce] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 className="font-bold text-gray-900 mb-1">Esti Director de Lansare sau Director Executiv?</h3>
-              <p className="text-gray-600 text-sm mb-3">
-                Adauga si gestioneaza grupul tau BNI direct din panoul de administrare.
-              </p>
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-semibold transition"
+              <h2 className="text-3xl font-black text-[#1f2326]">Top 5 Giveri</h2>
+              <p className="mt-1 text-sm font-semibold text-[#5f6469]">Membrii care dau tonul competitiei.</p>
+            </div>
+            {memberLeaders.length > 5 && (
+              <button
+                onClick={() => setIsLeaderboardModalOpen(true)}
+                className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
               >
-                Acceseaza Admin Panel
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+                Vizualizeaza clasamentul complet
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {visibleMemberLeaders.map((member, index) => (
+              <div
+                key={member.name}
+                className={`flex items-center justify-between gap-4 rounded-md border p-3 ${
+                  index < 3 ? 'border-[#c8102e]/25 bg-[#fff1f2]' : 'border-[#ded8ce] bg-[#fbfaf7]'
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#c8102e] text-sm font-black text-white">{index + 1}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-black text-[#1f2326]">{member.name}</p>
+                    <p className="truncate text-xs font-black uppercase tracking-wide text-[#c8102e]">{member.group}</p>
+                    <p className="text-xs text-[#5f6469]">{member.sent} recomandari, {member.completed} membri BNI</p>
+                  </div>
+                </div>
+                <p className="shrink-0 text-xl font-black text-[#1f2326]">{member.points}p</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-[#ded8ce] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-3xl font-black text-[#1f2326]">Harta grupurilor in lansare</h2>
+            {selectedRegion && <span className="rounded bg-[#fff1f2] px-2 py-1 text-xs font-black text-[#c8102e]">{selectedRegion}</span>}
+          </div>
+          <p className="mt-1 text-sm font-semibold text-[#5f6469]">Click pe judet pentru filtrarea grupurilor.</p>
+
+          <div className={`relative mt-5 aspect-[4/3] rounded-lg border border-[#ded8ce] bg-white transition ${selectedRegion ? 'ring-2 ring-[#c8102e]/25' : ''}`}>
+            <img
+              src="/romania-counties.png"
+              alt="Harta Romaniei pe judete"
+              className={`absolute inset-0 h-full w-full rounded-lg object-contain p-2 transition duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}
+            />
+            {Object.entries(regionCounts).map(([region, count]) => (
+              <button
+                key={region}
+                onClick={() => setSelectedRegion(region)}
+                title={`${region}: ${count} grupuri in formare`}
+                className={`group absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#c8102e] text-xs font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
+              >
+                {count}
+                <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">
+                  {region}: {count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-[#1f2326]">Clasament grupuri</h2>
+            <p className="text-sm text-[#5f6469]">Ordonare dupa rata de finalizare pentru lansare.</p>
+          </div>
+          {selectedRegion && (
+            <button
+              onClick={() => setSelectedRegion(null)}
+              className="rounded-md border border-[#ded8ce] bg-white px-3 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
+            >
+              Toate judetele
+            </button>
+          )}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-3">
+            {filteredGroups.map((group, index) => (
+              <article key={group.name} className="rounded-lg border border-[#ded8ce] bg-white p-3 shadow-sm">
+                <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-center">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1f2326] text-xs font-black text-white">#{index + 1}</span>
+                      <div>
+                        <h3 className="text-sm font-black text-[#1f2326]">{group.name}</h3>
+                        <p className="text-xs font-semibold text-[#5f6469]">{group.region}, {group.director}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide text-[#5f6469]">
+                        <span>Lansare</span>
+                        <span>{group.recommendedMembers}/{group.launchTargetMembers} membri</span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={group.recommendedMembers}>
+                        <div className="h-full rounded-full bg-[#c8102e] transition-all" style={{ width: `${group.launchPercent}%` }} />
+                      </div>
+                      <p className="mt-1 text-[11px] font-semibold leading-4 text-[#5f6469]">{group.launchLabel}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {group.slotDomains.map((domain) => (
+                        <Link
+                          key={domain.id}
+                          href={`/recommendations?group=${encodeURIComponent(group.name)}&domain=${encodeURIComponent(domain.name)}`}
+                          title={`${domain.name} - ${domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}`}
+                          className={`min-h-[68px] rounded-md border px-3 py-2 transition hover:border-[#c8102e] ${
+                            domain.status === 'filled'
+                              ? 'border-emerald-300 bg-emerald-50'
+                              : 'border-[#ded8ce] bg-[#fbfaf7]'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${domain.status === 'filled' ? 'bg-emerald-500' : 'bg-[#c8102e]'}`} />
+                            <p className="line-clamp-2 text-[13px] font-black leading-4 text-[#1f2326]">{domain.name}</p>
+                          </div>
+                          <p className={`mt-1 line-clamp-2 text-[11px] font-black leading-4 ${domain.status === 'filled' ? 'text-emerald-700' : 'text-[#c8102e]'}`}>
+                            {domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                    <LaunchSeats seats={group.seats} showLegend />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <aside className="rounded-lg border border-[#ded8ce] bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-black text-[#1f2326]">Grupuri lansate</h2>
+            <p className="mt-1 text-xs font-semibold text-[#5f6469]">Target atins si Kick-off Party.</p>
+            <div className="mt-4 space-y-3">
+              {launchedGroups.length > 0 ? launchedGroups.map((group, index) => (
+                <div key={group.name} className="rounded-md border border-[#ded8ce] bg-[#fbfaf7] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-[#1f2326]">#{index + 1} {group.name}</p>
+                      <p className="text-xs font-semibold text-[#5f6469]">{group.region}</p>
+                    </div>
+                    <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">Lansat</span>
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-[#5f6469]">
+                    {group.recommendedMembers}/{group.launchTargetMembers} membri
+                  </p>
+                  <p className="mt-1 text-xs font-black text-[#c8102e]">
+                    Kick-off Party: {kickoffDatesByGroup[group.name] || 'Data in confirmare'}
+                  </p>
+                </div>
+              )) : (
+                <div className="rounded-md border border-dashed border-[#ded8ce] bg-[#fbfaf7] p-3 text-sm font-semibold text-[#5f6469]">
+                  Nu exista inca grupuri cu targetul de lansare atins. Primele reusite vor aparea aici.
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      {isLeaderboardModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2326]/65 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leaderboard-modal-title"
+        >
+          <div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-lg border border-[#ded8ce] bg-white shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#ded8ce] px-5 py-4">
+              <div>
+                <h2 id="leaderboard-modal-title" className="text-2xl font-black text-[#1f2326]">
+                  Clasamentul complet Top Giveri
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#5f6469]">
+                  Toti membrii care au trimis recomandari in competitie.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsLeaderboardModalOpen(false)}
+                className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
+              >
+                Inchide
+              </button>
+            </div>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto p-5">
+              {memberLeaders.map((member, index) => (
+                <div
+                  key={`${member.name}-${member.group}`}
+                  className={`flex items-center justify-between gap-4 rounded-md border p-4 ${
+                    index < 3 ? 'border-[#c8102e]/25 bg-[#fff1f2]' : 'border-[#ded8ce] bg-[#fbfaf7]'
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-[#c8102e] text-lg font-black text-white">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-black text-[#1f2326]">{member.name}</p>
+                      <p className="truncate text-xs font-black uppercase tracking-wide text-[#c8102e]">{member.group}</p>
+                      <p className="text-sm text-[#5f6469]">{member.sent} recomandari, {member.completed} membri BNI</p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-2xl font-black text-[#1f2326]">{member.points}p</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Quick links */}
-      <div className="bg-white border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid md:grid-cols-3 gap-6">
-            <Link href="/members" className="group p-6 rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition">
-              <h3 className="font-bold text-gray-900 group-hover:text-red-600 mb-2">Membri</h3>
-              <p className="text-sm text-gray-500">Directorul membrilor BNI Gold activi</p>
-            </Link>
-            <Link href="/recommendations" className="group p-6 rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition">
-              <h3 className="font-bold text-gray-900 group-hover:text-red-600 mb-2">Recomandari</h3>
-              <p className="text-sm text-gray-500">Ofera recomandari membrilor din retea</p>
-            </Link>
-            <Link href="/domains" className="group p-6 rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition">
-              <h3 className="font-bold text-gray-900 group-hover:text-red-600 mb-2">Domenii Gratuite</h3>
-              <p className="text-sm text-gray-500">Domenii web disponibile pentru grupuri noi</p>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
-          <p className="text-gray-400 text-sm">
-            BNI Gold Members Romania &mdash; Platforma de management pentru grupurile BNI
-          </p>
-        </div>
-      </div>
-    </div>
+      )}
+    </main>
   )
 }

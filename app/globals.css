@@ -3,14 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f6f3;
+  --foreground: #1f2326;
+  --bni-red: #c8102e;
+  --bni-red-dark: #9f1239;
+  --bni-charcoal: #1f2326;
+  --bni-graphite: #4b4f54;
+  --bni-cream: #f7f6f3;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #f7f6f3;
+    --foreground: #1f2326;
   }
 }
 
