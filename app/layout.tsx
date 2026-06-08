@@ -16,7 +16,14 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "BNI Gold Members Romania",
-  description: "Recommendations platform for BNI Gold Members",
+  description: "Platforma de recomandari si competitie pentru BNI Gold Members",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ro">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

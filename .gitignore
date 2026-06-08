@@ -31,6 +31,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# deploy / local secrets (FTP credentials live here — never commit)
+deploy.ftp
+dev-server.log
+/tmp/
+# server-side runtime data (directors persistence)
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

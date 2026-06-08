@@ -15,7 +15,7 @@ export async function GET() {
       data: members,
       total: members.length
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch members' },
       { status: 500 }
