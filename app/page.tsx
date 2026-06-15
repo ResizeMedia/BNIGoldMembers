@@ -1,116 +1,105 @@
+'use client'
+
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import {
+  GoldPerformer,
   getGoldProgress,
-  getGoldStatus,
   goldThreshold,
   initialGoldPerformers,
 } from '@/lib/bni-data'
 
 function initials(name: string) {
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+  return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
 export default function Home() {
-  const performers = [...initialGoldPerformers].sort(
+  const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
+
+  useEffect(() => {
+    fetch('/api/performers')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) setPerformers(json.data)
+      })
+      .catch(() => {})
+  }, [])
+
+  const sorted = [...performers].sort(
     (a, b) => b.sponsoredMembers - a.sponsoredMembers || b.competitionRecommendations - a.competitionRecommendations || a.name.localeCompare(b.name)
   )
-
-  const goldMembers = performers.filter((member) => member.sponsoredMembers >= goldThreshold)
-  const closeMembers = performers.filter((member) => member.sponsoredMembers < goldThreshold)
+  const goldMembers = sorted.filter((m) => m.sponsoredMembers >= goldThreshold)
+  const podium = sorted.slice(0, 3)
 
   return (
     <main className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
-      <section className="border-b border-[#ded8ce] bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <p className="text-sm font-black uppercase tracking-[0.18em] text-[#c8102e]">BNI Gold Members Romania</p>
-          <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Performerii GOLD</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5f6469] sm:text-base">
-                Membrii care au adus cel putin {goldThreshold} membri in organizatie si cei care sunt aproape de pragul Gold.
-                Concursul ii ajuta sa treaca mai rapid peste acest prag prin recomandari relevante.
-              </p>
-            </div>
+      <section className="bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">BNI ROMANIA</p>
+          <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">Gold Club Members</h1>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded bg-white px-3 py-1 text-sm font-black text-[#c8102e]">{goldMembers.length} membri Gold</span>
+            <span className="rounded bg-white/20 px-3 py-1 text-sm font-black">Prag: {goldThreshold} membri adusi</span>
+          </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
-              <div className="rounded-md border border-[#ded8ce] bg-[#fbfaf8] p-3">
-                <p className="text-2xl font-black text-[#c8102e]">{goldMembers.length}</p>
-                <p className="text-[11px] font-black uppercase text-[#5f6469]">Gold Club</p>
-              </div>
-              <div className="rounded-md border border-[#ded8ce] bg-[#fbfaf8] p-3">
-                <p className="text-2xl font-black text-[#c8102e]">{closeMembers.length}</p>
-                <p className="text-[11px] font-black uppercase text-[#5f6469]">Aproape</p>
-              </div>
-              <div className="rounded-md border border-[#ded8ce] bg-[#fbfaf8] p-3">
-                <p className="text-2xl font-black text-[#c8102e]">{goldThreshold}</p>
-                <p className="text-[11px] font-black uppercase text-[#5f6469]">Prag membri</p>
-              </div>
-            </div>
+          <div className="mt-8 grid grid-cols-3 items-end gap-3 sm:max-w-xl">
+            {[podium[1], podium[0], podium[2]].map((member, i) => {
+              if (!member) return <div key={i} />
+              const height = member === podium[0] ? 'h-28' : member === podium[1] ? 'h-20' : 'h-16'
+              const place = member === podium[0] ? 1 : member === podium[1] ? 2 : 3
+              return (
+                <div key={member.id} className="flex flex-col items-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-white bg-white text-lg font-black text-[#c8102e]">{initials(member.name)}</div>
+                  <p className="mt-2 text-center text-xs font-black leading-tight">{member.name}</p>
+                  <div className={`mt-2 flex ${height} w-full items-start justify-center rounded-t-md bg-white/15 pt-2 text-2xl font-black`}>{place}</div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center gap-3">
-          <h2 className="text-xl font-black uppercase text-[#e62612] sm:text-2xl">Gold Club Members in BNI Romania</h2>
-          <span className="h-1 w-24 bg-[#c8102e]" />
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-black uppercase text-[#e62612] sm:text-2xl">Gold Club Members in BNI Romania</h2>
+            <span className="h-1 w-24 bg-[#c8102e]" />
+          </div>
+          <Link href="/campanie" className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]">
+            Vezi Campania &quot;6 to Gold&quot;
+          </Link>
         </div>
 
-        <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-          {performers.map((member, index) => {
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {sorted.map((member, index) => {
             const progress = getGoldProgress(member)
             const isGold = member.sponsoredMembers >= goldThreshold
             const remaining = Math.max(goldThreshold - member.sponsoredMembers, 0)
-
             return (
-              <article key={member.id} className="group">
-                <div className="relative overflow-hidden rounded-sm border border-[#ded8ce] bg-white shadow-sm transition group-hover:-translate-y-1 group-hover:shadow-md">
-                  <div className={`flex aspect-[4/3] items-center justify-center ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`}>
-                    <div className="flex h-28 w-28 items-center justify-center rounded-full border-4 border-white/85 bg-white text-4xl font-black text-[#c8102e] shadow-lg">
-                      {initials(member.name)}
+              <article key={member.id} className="overflow-hidden rounded-md border border-[#ded8ce] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className={`relative flex h-24 items-center justify-center ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`}>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/85 bg-white text-xl font-black text-[#c8102e]">{initials(member.name)}</div>
+                  <span className="absolute left-2 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#c8102e]">#{index + 1}</span>
+                  <span className="absolute bottom-2 right-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1f2326]">{member.sponsoredMembers}/{goldThreshold}</span>
+                </div>
+                <div className="p-3 text-center">
+                  <h3 className="text-sm font-black uppercase leading-tight text-[#e62612]">{member.name}</h3>
+                  <p className="mt-0.5 text-xs font-black uppercase text-[#1f2326]">{member.group}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-[#5f6469]">{member.region} · {member.business}</p>
+                  <div className="mt-2">
+                    <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase text-[#5f6469]">
+                      <span>{isGold ? 'GOLD' : `${remaining} pana la prag`}</span>
+                      <span>{progress}%</span>
                     </div>
-                    <div className="absolute left-3 top-3 rounded bg-white px-2 py-1 text-xs font-black text-[#c8102e]">#{index + 1}</div>
-                    <div className="absolute bottom-3 right-3 rounded bg-white px-2 py-1 text-xs font-black text-[#1f2326]">
-                      {member.sponsoredMembers}/{goldThreshold}
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e5dfd5]">
+                      <div className={`h-full rounded-full ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`} style={{ width: `${progress}%` }} />
                     </div>
                   </div>
-
-                  <div className="p-4 text-center">
-                    <h3 className="text-lg font-black uppercase leading-tight text-[#e62612]">{member.name}</h3>
-                    <p className="mt-1 text-sm font-black uppercase text-[#1f2326]">{member.group}</p>
-                    <p className="mt-1 text-xs font-semibold text-[#5f6469]">{member.region} · {member.business}</p>
-
-                    <div className="mt-4">
-                      <div className="mb-1 flex items-center justify-between text-[11px] font-black uppercase text-[#5f6469]">
-                        <span>{getGoldStatus(member)}</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres Gold pentru ${member.name}`} aria-valuemin={0} aria-valuemax={goldThreshold} aria-valuenow={member.sponsoredMembers}>
-                        <div className={`h-full rounded-full ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`} style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-left">
-                      <div className="rounded-md bg-[#f7f6f3] p-3">
-                        <p className="text-xl font-black">{member.sponsoredMembers}</p>
-                        <p className="text-[10px] font-black uppercase text-[#5f6469]">membri adusi</p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f6f3] p-3">
-                        <p className="text-xl font-black">{isGold ? 'GOLD' : remaining}</p>
-                        <p className="text-[10px] font-black uppercase text-[#5f6469]">{isGold ? 'status activ' : 'pana la prag'}</p>
-                      </div>
-                    </div>
-
-                    {member.competitionRecommendations > 0 && (
-                      <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-bold text-[#c8102e]">
-                        +{member.competitionRecommendations} recomandari active in competitie
-                      </p>
-                    )}
-                  </div>
+                  {member.bniProfileUrl && (
+                    <a href={member.bniProfileUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block rounded-md border border-[#c8102e] px-3 py-1.5 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2]">
+                      Profil BNI
+                    </a>
+                  )}
                 </div>
               </article>
             )
