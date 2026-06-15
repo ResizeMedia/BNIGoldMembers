@@ -1013,7 +1013,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="border-b border-[#ded8ce] bg-white">
-        <div className="mx-auto grid max-w-7xl gap-2 px-4 py-3 sm:grid-cols-3 sm:px-6 lg:grid-cols-7 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap gap-2 px-4 py-3 sm:px-6 lg:px-8">
           {tabs.map((tab) => (
             <button
               key={tab.key}
