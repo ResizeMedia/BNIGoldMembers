@@ -1577,7 +1577,10 @@ export default function AdminDashboard() {
                 <div key={p.id} className="grid gap-2 rounded-md border border-[#ded8ce] bg-white p-3 sm:grid-cols-2 lg:grid-cols-3">
                   <input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} placeholder="Nume" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
                   <input value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} placeholder="Grup" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <input value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} placeholder="Regiune" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <select value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} className="rounded border border-[#ded8ce] px-2 py-1 text-sm">
+                    <option value="">Regiune</option>
+                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                  </select>
                   <input value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} placeholder="Business" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
                   <input type="number" value={p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) })} placeholder="Membri adusi" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
                   <input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="Link profil BNI" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
