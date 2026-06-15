@@ -113,6 +113,8 @@ function getReadableEmailError(message: string) {
 
 type AdminTab = 'overview' | 'recommendations' | 'domains' | 'directors' | 'performers' | 'groups' | 'regulation' | 'email_templates' | 'smtp'
 
+const ADMIN_SESSION_KEY = 'bni-admin-session'
+
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loginName, setLoginName] = useState('')
@@ -575,6 +577,19 @@ export default function AdminDashboard() {
     })
   }, [directors, directorsLoadedFromServer])
 
+  // Restore an existing session on refresh. Runs again once server directors land,
+  // so the match works whether we have seed or server data.
+  useEffect(() => {
+    if (isAuthenticated) return
+    const savedId = sessionStorage.getItem(ADMIN_SESSION_KEY)
+    if (!savedId) return
+    const director = directors.find((item) => String(item.id) === savedId)
+    if (director) {
+      setCurrentUser(director)
+      setIsAuthenticated(true)
+    }
+  }, [directors, isAuthenticated])
+
   // Gold performers are persisted server-side too, mirroring the directors pattern.
   useEffect(() => {
     fetch('/api/performers')
@@ -669,6 +684,7 @@ export default function AdminDashboard() {
       return
     }
 
+    sessionStorage.setItem(ADMIN_SESSION_KEY, String(director.id))
     setCurrentUser(director)
     setIsAuthenticated(true)
     setError('')
@@ -1021,7 +1037,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <button
-            onClick={() => { setIsAuthenticated(false); setCurrentUser(null); setLoginName(''); setPassword('') }}
+            onClick={() => { sessionStorage.removeItem(ADMIN_SESSION_KEY); setIsAuthenticated(false); setCurrentUser(null); setLoginName(''); setPassword('') }}
             className="w-fit rounded-md bg-[#343a40] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#4b4f54]"
           >
             Logout
