@@ -294,7 +294,7 @@ export default function Campanie() {
                     </div>
                     <div className="mt-3">
                       <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide text-[#5f6469]">
-                        <span>Lansare</span>
+                        <span>{group.launched ? 'Crestere' : 'Lansare'}</span>
                         <span>{group.recommendedMembers}/{group.launchTargetMembers} membri</span>
                       </div>
                       <div className="h-2.5 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={group.recommendedMembers}>

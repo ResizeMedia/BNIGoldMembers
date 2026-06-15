@@ -826,6 +826,18 @@ export default function AdminDashboard() {
     setError('')
   }
 
+  // Only the executive director of the group's region (or an admin) may delete a group.
+  const canDeleteGroup = (group: Group) =>
+    currentUser?.role === 'admin' ||
+    (currentUser?.role === 'executive_director' && getDirectorRegions(currentUser).includes(group.region))
+
+  const deleteGroup = (name: string) => {
+    const group = groups.find((g) => g.name === name)
+    if (!group || !canDeleteGroup(group)) return
+    if (!window.confirm(`Stergi definitiv grupul "${name}"? Actiunea nu poate fi anulata.`)) return
+    setGroups((prev) => prev.filter((g) => g.name !== name))
+  }
+
   const cancelEditGroup = () => {
     setEditingGroupName('')
     setEditingGroup(null)
@@ -1947,11 +1959,11 @@ export default function AdminDashboard() {
                       <input list="director-names" value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila (consultant lansare)" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-xs font-black uppercase text-slate-500">
-                          Membri deja validati
+                          Membri existenti
                           <input type="number" min={0} value={editingGroup.currentMembers} onChange={(e) => setEditingGroup({ ...editingGroup, currentMembers: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
                         </label>
                         <label className="text-xs font-black uppercase text-slate-500">
-                          Tinta lansare
+                          {editingGroup.launchedOn ? 'Tinta crestere' : 'Tinta lansare'}
                           <input type="number" min={25} value={editingGroup.launchTargetMembers} onChange={(e) => setEditingGroup({ ...editingGroup, launchTargetMembers: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
                         </label>
                       </div>
@@ -1959,10 +1971,17 @@ export default function AdminDashboard() {
                         <input type="checkbox" checked={editingGroup.active !== false} onChange={(e) => setEditingGroup({ ...editingGroup, active: e.target.checked })} className="h-4 w-4 accent-[#c8102e]" />
                         Activ in lista de competitie
                       </label>
-                      <label className="text-xs font-black uppercase text-slate-500">
-                        Data lansarii (pragul atins) — lasa gol daca inca se formeaza
-                        <input type="date" value={editingGroup.launchedOn || ''} onChange={(e) => setEditingGroup({ ...editingGroup, launchedOn: e.target.value || undefined })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
-                      </label>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                        <span className="text-sm font-black text-slate-700">{editingGroup.launchedOn ? 'Grup activ' : 'Grup in lansare'}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingGroup({ ...editingGroup, launchedOn: editingGroup.launchedOn ? undefined : new Date().toISOString().slice(0, 10) })}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition ${editingGroup.launchedOn ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                          aria-pressed={Boolean(editingGroup.launchedOn)}
+                        >
+                          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${editingGroup.launchedOn ? 'left-[22px]' : 'left-0.5'}`} />
+                        </button>
+                      </div>
                       <div className="flex gap-2">
                         <button onClick={saveEditedGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
                         <button onClick={cancelEditGroup} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
@@ -1975,15 +1994,25 @@ export default function AdminDashboard() {
                           <h3 className="text-lg font-black">{group.name}</h3>
                           <p className="mt-1 text-sm text-slate-500">Regiunea {group.region}</p>
                         </div>
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase ${group.active === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {group.active === false ? 'Inactiv' : 'Activ'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase ${group.active === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
+                            {group.active === false ? 'Inactiv' : 'Activ'}
+                          </span>
+                          <button
+                            onClick={() => deleteGroup(group.name)}
+                            disabled={!canDeleteGroup(group)}
+                            title={canDeleteGroup(group) ? 'Sterge grupul' : 'Doar directorul executiv al regiunii sau un admin poate sterge'}
+                            className={`flex h-7 w-7 items-center justify-center rounded-md text-lg font-black leading-none ${canDeleteGroup(group) ? 'bg-red-50 text-[#c8102e] hover:bg-red-100' : 'cursor-not-allowed bg-slate-100 text-slate-300'}`}
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-4 space-y-2 text-sm">
                         <p><span className="text-slate-500">Persoana responsabila:</span> <span className="font-semibold">{group.director || 'Neasignat'}</span></p>
                         <p><span className="text-slate-500">Domenii:</span> <span className="font-semibold">{priorityDomains.filter((domain) => domain.group === group.name).length} configurate</span></p>
-                        <p><span className="text-slate-500">Membri actuali:</span> <span className="font-semibold">{group.currentMembers}</span></p>
-                        <p><span className="text-slate-500">Tinta lansare:</span> <span className="font-semibold">{getRecommendedMemberCount(group, priorityDomains)}/{group.launchTargetMembers} membri</span></p>
+                        <p><span className="text-slate-500">Membri existenti:</span> <span className="font-semibold">{group.currentMembers}</span></p>
+                        <p><span className="text-slate-500">{group.launchedOn ? 'Tinta crestere:' : 'Tinta lansare:'}</span> <span className="font-semibold">{getRecommendedMemberCount(group, priorityDomains)}/{group.launchTargetMembers} membri</span></p>
                         <div>
                           <div className="h-2 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={getRecommendedMemberCount(group, priorityDomains)}>
                             <div className="h-full rounded-full bg-[#c8102e]" style={{ width: `${getLaunchCompletionPercent(group, priorityDomains)}%` }} />
