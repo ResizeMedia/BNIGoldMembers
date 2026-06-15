@@ -382,6 +382,17 @@ export function getLaunchProgressLabel(group: Group, domains: PriorityDomain[]) 
   const recommendedMembers = getRecommendedMemberCount(group, domains)
   const remaining = Math.max(group.launchTargetMembers - recommendedMembers, 0)
 
+  // Active (launched) groups grow toward a growth target; forming groups launch.
+  if (isGroupLaunched(group)) {
+    if (remaining === 0) {
+      return 'Tinta de crestere atinsa'
+    }
+    if (remaining <= 2) {
+      return `Aproape de tinta de crestere: mai sunt ${remaining} membri`
+    }
+    return `Mai sunt ${remaining} membri pana la tinta de crestere`
+  }
+
   if (remaining === 0) {
     return 'Pregatit pentru lansare'
   }
