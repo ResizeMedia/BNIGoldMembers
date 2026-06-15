@@ -97,9 +97,6 @@ export default function Navigation() {
               <Link href="/domains" className="hover:bg-[#fff1f2] hover:text-[#c8102e] px-3 py-2 rounded font-bold text-sm uppercase tracking-wide">
                 Domenii cautate
               </Link>
-              <Link href="/regulament" className="hover:bg-[#fff1f2] hover:text-[#c8102e] px-3 py-2 rounded font-bold text-sm uppercase tracking-wide">
-                Regulament
-              </Link>
             </div>
 
             <button
@@ -129,9 +126,6 @@ export default function Navigation() {
               </Link>
               <Link href="/domains" className="block hover:bg-[#fff1f2] hover:text-[#c8102e] px-3 py-2 rounded font-semibold">
                 Domenii cautate
-              </Link>
-              <Link href="/regulament" className="block hover:bg-[#fff1f2] hover:text-[#c8102e] px-3 py-2 rounded font-semibold">
-                Regulament
               </Link>
               <Link href="/admin" className="block bg-[#c8102e] text-white hover:bg-[#9f1239] px-3 py-2 rounded font-semibold">
                 Acces platforma
