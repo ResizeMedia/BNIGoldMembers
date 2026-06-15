@@ -142,7 +142,7 @@ export default function AdminDashboard() {
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_consultant' as DirectorRole, temporaryPassword: '', regions: [] as string[], groups: [] as string[] })
   const [newDomain, setNewDomain] = useState({ name: '', description: '', group: '' })
-  const [newGroup, setNewGroup] = useState({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
+  const [newGroup, setNewGroup] = useState({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true, launched: false })
   const [editingGroupName, setEditingGroupName] = useState('')
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [editingDirectorId, setEditingDirectorId] = useState<number | null>(null)
@@ -814,9 +814,14 @@ export default function AdminDashboard() {
       setError('Poti adauga grupuri doar in regiunile tale')
       return
     }
-    setGroups((prev) => [...prev, { ...newGroup, status: 'in formare' }])
+    const { launched, ...base } = newGroup
+    setGroups((prev) => [...prev, {
+      ...base,
+      status: launched ? 'activ' : 'in formare',
+      launchedOn: launched ? new Date().toISOString().slice(0, 10) : undefined,
+    }])
     if (newGroup.director) linkResponsibleToGroup(newGroup.name, newGroup.director)
-    setNewGroup({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
+    setNewGroup({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true, launched: false })
     setShowAddGroup(false)
   }
 
@@ -1907,42 +1912,72 @@ export default function AdminDashboard() {
 
             {showAddGroup && (
               <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="grid gap-3 md:grid-cols-6">
-                  <input value={newGroup.name} onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })} placeholder="Ex: BNI ELITE" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  <select value={newGroup.region} onChange={(e) => setNewGroup({ ...newGroup, region: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                    <option value="">Regiune</option>
-                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                  </select>
-                  <input list="director-names" value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Director responsabil (consultant lansare)" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  <input
-                    type="number"
-                    min={0}
-                    value={newGroup.currentMembers}
-                    onChange={(e) => setNewGroup({ ...newGroup, currentMembers: Number(e.target.value) })}
-                    placeholder="Membri actuali"
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    min={25}
-                    value={newGroup.launchTargetMembers}
-                    onChange={(e) => setNewGroup({ ...newGroup, launchTargetMembers: Number(e.target.value) })}
-                    placeholder="Tinta lansare, min. 25 membri"
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={newGroup.active}
-                      onChange={(e) => setNewGroup({ ...newGroup, active: e.target.checked })}
-                      className="h-4 w-4 accent-[#c8102e]"
-                    />
-                    Activ in competitie
+                <h3 className="text-lg font-black text-slate-900">Adauga grup nou</h3>
+                <p className="mt-1 text-sm text-slate-500">Completeaza datele grupului. Tinta minima de lansare este 25 de membri.</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <label className="text-xs font-black uppercase text-slate-500">
+                    Nume grup
+                    <input value={newGroup.name} onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })} placeholder="Ex: BNI ELITE" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
                   </label>
-                  <div className="flex gap-2">
-                    <button onClick={addGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
-                    <button onClick={() => setShowAddGroup(false)} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
+                  <label className="text-xs font-black uppercase text-slate-500">
+                    Regiune
+                    <select value={newGroup.region} onChange={(e) => setNewGroup({ ...newGroup, region: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950">
+                      <option value="">Alege regiune</option>
+                      {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs font-black uppercase text-slate-500">
+                    Persoana responsabila
+                    <input list="director-names" value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Consultant lansare" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                  </label>
+                  <label className="text-xs font-black uppercase text-slate-500">
+                    Membri existenti
+                    <input
+                      type="number"
+                      min={0}
+                      value={newGroup.currentMembers === 0 ? '' : newGroup.currentMembers}
+                      onChange={(e) => setNewGroup({ ...newGroup, currentMembers: Number(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950"
+                    />
+                  </label>
+                  <label className="text-xs font-black uppercase text-slate-500">
+                    {newGroup.launched ? 'Tinta crestere' : 'Tinta lansare'}
+                    <input
+                      type="number"
+                      min={25}
+                      value={newGroup.launchTargetMembers === 0 ? '' : newGroup.launchTargetMembers}
+                      onChange={(e) => setNewGroup({ ...newGroup, launchTargetMembers: Number(e.target.value) || 0 })}
+                      placeholder="min. 25"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950"
+                    />
+                  </label>
+                  <div className="flex flex-col justify-end gap-2">
+                    <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={newGroup.active}
+                        onChange={(e) => setNewGroup({ ...newGroup, active: e.target.checked })}
+                        className="h-4 w-4 accent-[#c8102e]"
+                      />
+                      Activ in competitie
+                    </label>
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="text-sm font-black text-slate-700">{newGroup.launched ? 'Grup activ' : 'Grup in formare'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewGroup({ ...newGroup, launched: !newGroup.launched })}
+                        className={`relative h-6 w-11 shrink-0 rounded-full transition ${newGroup.launched ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                        aria-pressed={newGroup.launched}
+                      >
+                        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${newGroup.launched ? 'left-[22px]' : 'left-0.5'}`} />
+                      </button>
+                    </div>
                   </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={addGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
+                  <button onClick={() => setShowAddGroup(false)} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>
                 </div>
               </div>
             )}
