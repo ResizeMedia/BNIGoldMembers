@@ -1956,6 +1956,10 @@ export default function AdminDashboard() {
                         <input type="checkbox" checked={editingGroup.active !== false} onChange={(e) => setEditingGroup({ ...editingGroup, active: e.target.checked })} className="h-4 w-4 accent-[#c8102e]" />
                         Activ in lista de competitie
                       </label>
+                      <label className="text-xs font-black uppercase text-slate-500">
+                        Data lansarii (pragul atins) — lasa gol daca inca se formeaza
+                        <input type="date" value={editingGroup.launchedOn || ''} onChange={(e) => setEditingGroup({ ...editingGroup, launchedOn: e.target.value || undefined })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                      </label>
                       <div className="flex gap-2">
                         <button onClick={saveEditedGroup} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
                         <button onClick={cancelEditGroup} className="rounded-md bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">Anuleaza</button>

@@ -34,27 +34,45 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
       <section className="bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">BNI ROMANIA</p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">Gold Club Members</h1>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded bg-white px-3 py-1 text-sm font-black text-[#c8102e]">{goldMembers.length} membri Gold</span>
-            <span className="rounded bg-white/20 px-3 py-1 text-sm font-black">Prag: {goldThreshold} membri adusi</span>
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/85">BNI Romania</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Gold Club Members</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded bg-white px-3 py-1 text-sm font-black text-[#c8102e]">{goldMembers.length} membri Gold</span>
+              <span className="rounded bg-white/20 px-3 py-1 text-sm font-black">Prag: {goldThreshold} membri adusi</span>
+            </div>
           </div>
 
-          <div className="mt-8 grid grid-cols-3 items-end gap-3 sm:max-w-xl">
-            {[podium[1], podium[0], podium[2]].map((member, i) => {
-              if (!member) return <div key={i} />
-              const height = member === podium[0] ? 'h-28' : member === podium[1] ? 'h-20' : 'h-16'
-              const place = member === podium[0] ? 1 : member === podium[1] ? 2 : 3
-              return (
-                <div key={member.id} className="flex flex-col items-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-white bg-white text-lg font-black text-[#c8102e]">{initials(member.name)}</div>
-                  <p className="mt-2 text-center text-xs font-black leading-tight">{member.name}</p>
-                  <div className={`mt-2 flex ${height} w-full items-start justify-center rounded-t-md bg-white/15 pt-2 text-2xl font-black`}>{place}</div>
-                </div>
-              )
-            })}
+          {podium.length > 0 && (
+            <div className="grid w-full max-w-md grid-cols-3 items-end gap-3 lg:w-auto">
+              {[podium[1], podium[0], podium[2]].map((member, i) => {
+                if (!member) return <div key={i} />
+                const height = member === podium[0] ? 'h-16' : member === podium[1] ? 'h-12' : 'h-10'
+                const place = member === podium[0] ? 1 : member === podium[1] ? 2 : 3
+                return (
+                  <div key={member.id} className="flex flex-col items-center">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-white text-sm font-black text-[#c8102e]">{initials(member.name)}</div>
+                    <p className="mt-1 text-center text-[11px] font-black leading-tight">{member.name}</p>
+                    <div className={`mt-1.5 flex ${height} w-full items-start justify-center rounded-t-md bg-white/15 pt-1 text-xl font-black`}>{place}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="border-b border-[#ded8ce] bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-5 px-4 py-6 sm:px-6 lg:flex-row lg:px-8">
+          <img src="/gold-club-pin.png" alt="Pin GOLD CLUB MEMBER" className="h-20 w-auto shrink-0 drop-shadow" />
+          <div className="text-sm leading-6 text-[#1f2326]">
+            <p>
+              <span className="font-black">Membrii Gold Club</span> sunt recunoscuti pentru ca au recomandat sase (6) sau mai multe persoane noi in comunitatea BNI (oricare grup din regiune, orice perioada de timp).
+            </p>
+            <p className="mt-2">
+              Ei primesc o insigna speciala de membru si un pin cu diamant, impreuna cu recunoastere in cadrul grupului lor si pe site-ul national. Exista si evenimente regionale pentru ca membrii sa interactioneze cu alti lideri din BNI.
+            </p>
           </div>
         </div>
       </section>

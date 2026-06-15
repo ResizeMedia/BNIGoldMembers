@@ -33,6 +33,8 @@ export interface Group {
   currentMembers: number
   launchTargetMembers: number
   active?: boolean
+  /** ISO date the group reached its launch target / went active. Present = launched. */
+  launchedOn?: string
 }
 
 export interface Recommendation {
@@ -353,6 +355,12 @@ export function getGroupsForDirector(director: Director, groups: Group[]) {
 
 export function isGroupActive(group: Group) {
   return group.active !== false
+}
+
+// A group is launched/active in the org once it has a launchedOn date set
+// (directors set it in admin when the group reaches its target and goes live).
+export function isGroupLaunched(group: Group) {
+  return Boolean(group.launchedOn)
 }
 
 export function getRecommendedMemberCount(group: Group | string, domains: PriorityDomain[]) {
