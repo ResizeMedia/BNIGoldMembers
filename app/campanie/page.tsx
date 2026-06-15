@@ -9,7 +9,10 @@ import {
   Group,
   PriorityDomain,
   RECOMMENDATIONS_STORAGE_KEY,
+  REGULATION_STORAGE_KEY,
   Recommendation,
+  RegulationContent,
+  initialRegulationContent,
   getActiveSlotDomains,
   getLaunchCompletionPercent,
   getLaunchProgressLabel,
@@ -48,6 +51,8 @@ export default function Campanie() {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'forming' | 'active'>('all')
   const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false)
+  const [openModal, setOpenModal] = useState<null | 'regulament' | 'premii'>(null)
+  const [regulation, setRegulation] = useState<RegulationContent>(initialRegulationContent)
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
   const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
@@ -81,6 +86,16 @@ export default function Campanie() {
         if (Array.isArray(parsed)) setRecommendations(parsed)
       } catch {
         setRecommendations(initialRecommendations)
+      }
+    }
+
+    const storedRegulation = window.localStorage.getItem(REGULATION_STORAGE_KEY)
+    if (storedRegulation) {
+      try {
+        const parsed = JSON.parse(storedRegulation) as Partial<RegulationContent>
+        setRegulation({ ...initialRegulationContent, ...parsed })
+      } catch {
+        setRegulation(initialRegulationContent)
       }
     }
   }, [])
@@ -126,9 +141,17 @@ export default function Campanie() {
               Recomandarile aduc fiecare grup mai aproape de lansare.
             </p>
           </div>
-          <Link href="/" className="inline-block shrink-0 rounded-md bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-white/90">
-            Vezi membrii Gold
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setOpenModal('regulament')} className="inline-block shrink-0 rounded-md border border-white/70 bg-transparent px-4 py-2 text-sm font-black text-white hover:bg-white/10">
+              Regulament
+            </button>
+            <button onClick={() => setOpenModal('premii')} className="inline-block shrink-0 rounded-md border border-white/70 bg-transparent px-4 py-2 text-sm font-black text-white hover:bg-white/10">
+              Premii
+            </button>
+            <Link href="/" className="inline-block shrink-0 rounded-md bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-white/90">
+              Vezi membrii Gold
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -388,6 +411,75 @@ export default function Campanie() {
                   <p className="shrink-0 text-2xl font-black text-[#1f2326]">{member.points}p</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2326]/65 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setOpenModal(null)}
+        >
+          <div className="max-h-[88vh] w-full max-w-2xl overflow-hidden rounded-lg border border-[#ded8ce] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-[#ded8ce] px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8102e]">{regulation.eyebrow}</p>
+                <h2 className="text-2xl font-black text-[#1f2326]">
+                  {openModal === 'regulament' ? regulation.title : regulation.prizesTitle}
+                </h2>
+              </div>
+              <button
+                onClick={() => setOpenModal(null)}
+                className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
+              >
+                Inchide
+              </button>
+            </div>
+            <div className="max-h-[72vh] space-y-5 overflow-y-auto p-5 text-sm leading-6 text-[#1f2326]">
+              {openModal === 'regulament' ? (
+                <>
+                  <p className="font-semibold text-[#5f6469]">{regulation.subtitle}</p>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.periodTitle}</h3>
+                    <p className="mt-1 whitespace-pre-line">{regulation.periodBody}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.objectiveTitle}</h3>
+                    <p className="mt-1 whitespace-pre-line">{regulation.objectiveBody}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.scoringTitle}</h3>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                      {regulation.scoringRows.map((row) => <li key={row}>{row}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.prizesTitle}</h3>
+                    <p className="mt-1 whitespace-pre-line">{regulation.prizesBody}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.transparencyTitle}</h3>
+                    <p className="mt-1 whitespace-pre-line">{regulation.transparencyBody}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">{regulation.prizesTitle}</h3>
+                    <p className="mt-1 whitespace-pre-line">{regulation.prizesBody}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#1f2326]">Conditii de premiere</h3>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                      {regulation.scoringRows.map((row) => <li key={row}>{row}</li>)}
+                    </ul>
+                    <p className="mt-2 whitespace-pre-line text-[#5f6469]">{regulation.transparencyBody}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
