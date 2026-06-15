@@ -117,13 +117,17 @@ export default function Campanie() {
     <main className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
       <section className="border-b border-[#9f1239] bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
         <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">BNI Gold Members Romania</h1>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">CAMPANIE</p>
+          <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">6 to Gold</h1>
           <p className="mx-auto mt-4 max-w-3xl text-lg font-medium text-white/95">
             Conectam membrii, impartasim recomandari, construim relatii de afaceri.
           </p>
           <p className="mx-auto mt-3 max-w-4xl text-sm font-semibold text-white/85">
             Competitia recomandarilor pentru grupurile in formare arata cine ajuta fiecare grup sa ajunga mai aproape de lansare.
           </p>
+          <Link href="/" className="mt-5 inline-block rounded-md bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-white/90">
+            Vezi membrii Gold
+          </Link>
         </div>
       </section>
 
