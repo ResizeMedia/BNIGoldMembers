@@ -24,6 +24,7 @@ import {
   SMTP_SETTINGS_STORAGE_KEY,
   SmtpSettings,
   getActiveSlotDomains,
+  getDirectorGroups,
   getDirectorRegions,
   getGroupsForDirector,
   getLaunchCompletionPercent,
@@ -31,7 +32,9 @@ import {
   getLaunchSeats,
   getMemberLeaderboard,
   getRecommendedMemberCount,
+  GoldPerformer,
   initialDirectors,
+  initialGoldPerformers,
   initialEmailTemplates,
   initialGroups,
   initialPriorityDomains,
@@ -72,13 +75,13 @@ function accessLabel(director: Director) {
     return 'Acces complet'
   }
 
-  const directorRegions = getDirectorRegions(director)
+  const parts: string[] = []
+  const regions = getDirectorRegions(director)
+  const groups = getDirectorGroups(director)
+  if (regions.length > 0) parts.push(`Regiuni: ${regions.join(', ')}`)
+  if (groups.length > 0) parts.push(`Grupuri: ${groups.join(', ')}`)
 
-  if (directorRegions.length > 0) {
-    return directorRegions.join(', ')
-  }
-
-  return director.group || 'Neconfigurat'
+  return parts.length > 0 ? parts.join(' · ') : 'Neconfigurat'
 }
 
 function getReadableEmailError(message: string) {
@@ -108,7 +111,7 @@ function getReadableEmailError(message: string) {
   return message
 }
 
-type AdminTab = 'overview' | 'recommendations' | 'domains' | 'directors' | 'groups' | 'regulation' | 'email_templates' | 'smtp'
+type AdminTab = 'overview' | 'recommendations' | 'domains' | 'directors' | 'performers' | 'groups' | 'regulation' | 'email_templates' | 'smtp'
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -123,7 +126,10 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
   const [directors, setDirectors] = useState<Director[]>(initialDirectors)
   const [directorsLoadedFromServer, setDirectorsLoadedFromServer] = useState(false)
+  const [smtpLoadedFromServer, setSmtpLoadedFromServer] = useState(false)
   const [groups, setGroups] = useState<Group[]>(initialGroups)
+  const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
+  const [performersLoadedFromServer, setPerformersLoadedFromServer] = useState(false)
   const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
   const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(initialEmailTemplates)
@@ -134,16 +140,19 @@ export default function AdminDashboard() {
   const [showAddDirector, setShowAddDirector] = useState(false)
   const [showAddDomain, setShowAddDomain] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
-  const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_consultant' as DirectorRole, temporaryPassword: '', regions: [] as string[], group: '' })
+  const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_consultant' as DirectorRole, temporaryPassword: '', regions: [] as string[], groups: [] as string[] })
   const [newDomain, setNewDomain] = useState({ name: '', description: '', group: '' })
   const [newGroup, setNewGroup] = useState({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
   const [editingGroupName, setEditingGroupName] = useState('')
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [editingDirectorId, setEditingDirectorId] = useState<number | null>(null)
+  const [manageExtraGroups, setManageExtraGroups] = useState(false)
   const [editingDirector, setEditingDirector] = useState<Director | null>(null)
   const [temporaryPasswordInput, setTemporaryPasswordInput] = useState('')
   const [openRecommendationIds, setOpenRecommendationIds] = useState<number[]>([])
   const [smtpTestStatus, setSmtpTestStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({ type: 'idle', message: '' })
+  const [directorSort, setDirectorSort] = useState<{ column: 'name' | 'email' | 'role'; dir: 'asc' | 'desc' }>({ column: 'name', dir: 'asc' })
+  const [directorRoleFilter, setDirectorRoleFilter] = useState<'all' | DirectorRole>('all')
 
   const visibleGroups = useMemo(() => currentUser ? getGroupsForDirector(currentUser, groups) : [], [currentUser, groups])
   const visibleGroupNames = useMemo(() => new Set(visibleGroups.map((group) => group.name)), [visibleGroups])
@@ -165,10 +174,54 @@ export default function AdminDashboard() {
 
     return directors.filter((director) => {
       if (director.role === 'admin') return false
-      if (director.group && visibleGroupNames.has(director.group)) return true
+      if (getDirectorGroups(director).some((group) => visibleGroupNames.has(group))) return true
       return getDirectorRegions(director).some((region) => visibleRegionNames.has(region))
     })
   }, [currentUser, directors, visibleGroupNames, visibleRegionNames])
+
+  const displayedDirectors = useMemo(() => {
+    const filtered = directorRoleFilter === 'all'
+      ? visibleDirectors
+      : visibleDirectors.filter((director) => director.role === directorRoleFilter)
+
+    const value = (director: Director) => {
+      if (directorSort.column === 'role') return roleLabel(director.role)
+      return (director[directorSort.column] || '').toLowerCase()
+    }
+
+    return [...filtered].sort((a, b) => {
+      const cmp = value(a).localeCompare(value(b), 'ro')
+      return directorSort.dir === 'asc' ? cmp : -cmp
+    })
+  }, [visibleDirectors, directorRoleFilter, directorSort])
+
+  const editablePerformers = useMemo(() => {
+    if (!currentUser) return [] as GoldPerformer[]
+    if (currentUser.role === 'admin') return performers
+    const directorRegions = getDirectorRegions(currentUser)
+    const groupNames = getGroupsForDirector(currentUser, groups).map((group) => group.name)
+    return performers.filter((performer) => directorRegions.includes(performer.region) || groupNames.includes(performer.group))
+  }, [performers, currentUser, groups])
+
+  function addPerformer() {
+    const nextId = performers.reduce((max, performer) => Math.max(max, performer.id), 0) + 1
+    setPerformers((prev) => [...prev, { id: nextId, name: 'Membru nou', group: '', region: '', business: '', sponsoredMembers: 0, competitionRecommendations: 0, bniProfileUrl: '' }])
+  }
+
+  function updatePerformer(id: number, patch: Partial<GoldPerformer>) {
+    setPerformers((prev) => prev.map((performer) => (performer.id === id ? { ...performer, ...patch } : performer)))
+  }
+
+  function deletePerformer(id: number) {
+    if (!window.confirm('Stergi acest membru?')) return
+    setPerformers((prev) => prev.filter((performer) => performer.id !== id))
+  }
+
+  const toggleDirectorSort = (column: 'name' | 'email' | 'role') => {
+    setDirectorSort((prev) => prev.column === column
+      ? { column, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { column, dir: 'asc' })
+  }
 
   const rankedGroups = useMemo(
     () => visibleGroups
@@ -220,6 +273,7 @@ export default function AdminDashboard() {
     { key: 'recommendations', label: 'Recomandari' },
     { key: 'domains', label: 'Domenii' },
     { key: 'directors', label: 'Directori' },
+    { key: 'performers', label: 'Membri Gold' },
     ...(currentUser?.role === 'admin' || currentUser?.role === 'executive_director' ? [
       { key: 'groups' as AdminTab, label: 'Grupuri' },
     ] : []),
@@ -433,7 +487,13 @@ export default function AdminDashboard() {
       try {
         const parsed = JSON.parse(storedEmailTemplates) as EmailTemplate[]
         if (Array.isArray(parsed)) {
-          setEmailTemplates(parsed)
+          // Merge in any template types added after this browser last saved (e.g. the
+          // recommendation_notification template) so the editor shows them.
+          const merged = [...parsed]
+          for (const template of initialEmailTemplates) {
+            if (!merged.some((item) => item.type === template.type)) merged.push(template)
+          }
+          setEmailTemplates(merged)
         }
       } catch {
         setError('Nu am putut citi template-urile email salvate local')
@@ -514,6 +574,55 @@ export default function AdminDashboard() {
       // Best-effort; localStorage copy already kept as fallback.
     })
   }, [directors, directorsLoadedFromServer])
+
+  // Gold performers are persisted server-side too, mirroring the directors pattern.
+  useEffect(() => {
+    fetch('/api/performers')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) setPerformers(json.data)
+      })
+      .catch(() => {})
+      .finally(() => setPerformersLoadedFromServer(true))
+  }, [])
+
+  useEffect(() => {
+    if (!performersLoadedFromServer) return
+    fetch('/api/performers', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(performers),
+    }).catch(() => {})
+  }, [performers, performersLoadedFromServer])
+
+  // SMTP settings are the source of truth on the server too, so recommendation
+  // notifications can be sent server-side for any (incl. public) submission.
+  useEffect(() => {
+    let active = true
+    fetch('/api/smtp')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad status'))))
+      .then((payload) => {
+        if (active && payload?.success && payload.data) {
+          setSmtpSettings({ ...initialSmtpSettings, ...payload.data })
+          setSmtpLoadedFromServer(true)
+        }
+      })
+      .catch(() => {
+        // Server unreachable → stay in localStorage-only mode.
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!smtpLoadedFromServer) return
+    fetch('/api/smtp', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(smtpSettings),
+    }).catch(() => {
+      // Best-effort; localStorage copy already kept as fallback.
+    })
+  }, [smtpSettings, smtpLoadedFromServer])
 
   useEffect(() => {
     if (!hasLoadedStoredState) return
@@ -664,13 +773,35 @@ export default function AdminDashboard() {
 
   const addDirector = () => {
     if (!newDirector.name || !newDirector.email) return
-    if (newDirector.role === 'executive_director' && newDirector.regions.length === 0) return
-    if (newDirector.role === 'launch_consultant' && !newDirector.group) return
     if (!newDirector.temporaryPassword) return
+    if (newDirector.role !== 'admin' && newDirector.regions.length === 0 && newDirector.groups.length === 0) {
+      setError('Aloca cel putin o regiune (executiv) sau un grup (lansare)')
+      return
+    }
     setDirectors((prev) => [...prev, { ...newDirector, id: prev.reduce((max, director) => Math.max(max, director.id), 0) + 1, mustChangePassword: true }])
-    setNewDirector({ name: '', email: '', role: 'launch_consultant', temporaryPassword: '', regions: [], group: '' })
+    setNewDirector({ name: '', email: '', role: 'launch_consultant', temporaryPassword: '', regions: [], groups: [] })
     setShowAddDirector(false)
     setError('')
+  }
+
+  // Make the named director the sole launch consultant of a group: add the group to
+  // their `groups`, remove it from everyone else, and normalize the legacy `group` field.
+  const linkResponsibleToGroup = (groupName: string, responsibleName: string) => {
+    const target = responsibleName.trim().toLowerCase()
+    setDirectors((prev) => prev.map((director) => {
+      const isTarget = Boolean(target) && director.name.trim().toLowerCase() === target
+      const groups = getDirectorGroups(director).filter((name) => name !== groupName)
+      if (isTarget) groups.push(groupName)
+      return { ...director, group: undefined, groups }
+    }))
+  }
+
+  const renameGroupInDirectors = (oldName: string, newName: string) => {
+    if (oldName === newName) return
+    setDirectors((prev) => prev.map((director) => {
+      const groups = getDirectorGroups(director).map((name) => name === oldName ? newName : name)
+      return { ...director, group: undefined, groups }
+    }))
   }
 
   const addGroup = () => {
@@ -684,6 +815,7 @@ export default function AdminDashboard() {
       return
     }
     setGroups((prev) => [...prev, { ...newGroup, status: 'in formare' }])
+    if (newGroup.director) linkResponsibleToGroup(newGroup.name, newGroup.director)
     setNewGroup({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true })
     setShowAddGroup(false)
   }
@@ -715,7 +847,8 @@ export default function AdminDashboard() {
     setGroups((prev) => prev.map((group) => group.name === editingGroupName ? editingGroup : group))
     setPriorityDomains((prev) => prev.map((domain) => domain.group === editingGroupName ? { ...domain, group: editingGroup.name } : domain))
     setRecommendations((prev) => prev.map((recommendation) => recommendation.group === editingGroupName ? { ...recommendation, group: editingGroup.name } : recommendation))
-    setDirectors((prev) => prev.map((director) => director.group === editingGroupName ? { ...director, group: editingGroup.name } : director))
+    renameGroupInDirectors(editingGroupName, editingGroup.name)
+    linkResponsibleToGroup(editingGroup.name, editingGroup.director)
     cancelEditGroup()
   }
 
@@ -725,7 +858,8 @@ export default function AdminDashboard() {
 
   const startEditDirector = (director: Director) => {
     setEditingDirectorId(director.id)
-    setEditingDirector({ ...director, regions: getDirectorRegions(director), mustChangePassword: director.mustChangePassword !== false })
+    setEditingDirector({ ...director, regions: getDirectorRegions(director), groups: getDirectorGroups(director), group: undefined, mustChangePassword: director.mustChangePassword !== false })
+    setManageExtraGroups(getDirectorGroups(director).length > 0)
     setTemporaryPasswordInput('')
     setError('')
   }
@@ -733,6 +867,7 @@ export default function AdminDashboard() {
   const cancelEditDirector = () => {
     setEditingDirectorId(null)
     setEditingDirector(null)
+    setManageExtraGroups(false)
     setTemporaryPasswordInput('')
     setError('')
   }
@@ -740,12 +875,8 @@ export default function AdminDashboard() {
   const saveEditedDirector = () => {
     if (!editingDirector) return
     if (!editingDirector.name || !editingDirector.email) return
-    if (editingDirector.role === 'executive_director' && getDirectorRegions(editingDirector).length === 0) {
-      setError('Directorul executiv trebuie sa aiba cel putin o regiune configurata')
-      return
-    }
-    if (editingDirector.role === 'launch_consultant' && !editingDirector.group) {
-      setError('Directorul consultant trebuie sa aiba un grup configurat')
+    if (editingDirector.role !== 'admin' && getDirectorRegions(editingDirector).length === 0 && getDirectorGroups(editingDirector).length === 0) {
+      setError('Aloca cel putin o regiune (executiv) sau un grup (lansare)')
       return
     }
 
@@ -869,7 +1000,7 @@ export default function AdminDashboard() {
               <h1 className="font-black">Admin competitie</h1>
             </div>
             <p className="mt-1 text-xs text-slate-400">
-              {currentUser.name}, {roleLabel(currentUser.role)}, {currentUser.role === 'admin' ? 'toate regiunile' : currentUser.role === 'executive_director' ? `Regiuni: ${accessLabel(currentUser)}` : currentUser.group}
+              {currentUser.name}, {roleLabel(currentUser.role)}, {currentUser.role === 'admin' ? 'toate regiunile' : accessLabel(currentUser)}
             </p>
           </div>
           <button
@@ -1241,8 +1372,24 @@ export default function AdminDashboard() {
 
         {activeTab === 'directors' && (
           <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-2xl font-black">Directori</h2>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-black">Directori</h2>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  Rol:
+                  <select
+                    value={directorRoleFilter}
+                    onChange={(e) => setDirectorRoleFilter(e.target.value as 'all' | DirectorRole)}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="all">Toate ({visibleDirectors.length})</option>
+                    <option value="admin">Administrator</option>
+                    <option value="executive_director">Director Executiv</option>
+                    <option value="launch_consultant">Director Consultant Lansare</option>
+                  </select>
+                </label>
+                <span className="text-xs font-semibold text-slate-400">{displayedDirectors.length} afisati</span>
+              </div>
               {currentUser.role === 'admin' && (
                 <button onClick={() => setShowAddDirector(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga director</button>
               )}
@@ -1263,26 +1410,32 @@ export default function AdminDashboard() {
                   </select>
                   {newDirector.role === 'admin' ? (
                     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
-                  ) : newDirector.role === 'executive_director' ? (
-                    <div>
-                      <select
-                        multiple
-                        value={newDirector.regions}
-                        onChange={(e) => setNewDirector({
-                          ...newDirector,
-                          regions: Array.from(e.target.selectedOptions, (option) => option.value),
-                        })}
-                        className="min-h-[92px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                      >
-                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                      </select>
-                      <p className="mt-1 text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru mai multe regiuni.</p>
-                    </div>
                   ) : (
-                    <select value={newDirector.group} onChange={(e) => setNewDirector({ ...newDirector, group: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                      <option value="">Grup</option>
-                      {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
-                    </select>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
+                        <select
+                          multiple
+                          value={newDirector.regions}
+                          onChange={(e) => setNewDirector({ ...newDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value) })}
+                          className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        >
+                          {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Grupuri (lansare)</p>
+                        <select
+                          multiple
+                          value={newDirector.groups}
+                          onChange={(e) => setNewDirector({ ...newDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value) })}
+                          className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        >
+                          {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru selectie multipla. Poti aloca si regiuni si grupuri (rol dublu).</p>
+                    </div>
                   )}
                   <div className="flex gap-2">
                     <button onClick={addDirector} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Salveaza</button>
@@ -1296,11 +1449,19 @@ export default function AdminDashboard() {
               <table className="w-full">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['Nume', 'Email', 'Rol', 'Parola temporara', 'Acces configurat', 'Actiuni'].map((head) => <th key={head} className="px-4 py-3 text-left text-xs font-black uppercase text-slate-500">{head}</th>)}
+                    {([['Nume', 'name'], ['Email', 'email'], ['Rol', 'role']] as const).map(([label, col]) => (
+                      <th key={col} className="px-4 py-3 text-left text-xs font-black uppercase text-slate-500">
+                        <button onClick={() => toggleDirectorSort(col)} className="flex items-center gap-1 uppercase hover:text-slate-900">
+                          {label}
+                          <span className="text-[10px]">{directorSort.column === col ? (directorSort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                        </button>
+                      </th>
+                    ))}
+                    {['Parola temporara', 'Acces configurat', 'Actiuni'].map((head) => <th key={head} className="px-4 py-3 text-left text-xs font-black uppercase text-slate-500">{head}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleDirectors
+                  {displayedDirectors
                     .map((director) => (
                       <Fragment key={director.id}>
                         <tr className="border-t border-slate-100">
@@ -1327,27 +1488,58 @@ export default function AdminDashboard() {
                               <div className="grid gap-3 lg:grid-cols-5">
                                 <input value={editingDirector.name} onChange={(e) => setEditingDirector({ ...editingDirector, name: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
                                 <input value={editingDirector.email} onChange={(e) => setEditingDirector({ ...editingDirector, email: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                                <select value={editingDirector.role} onChange={(e) => setEditingDirector({ ...editingDirector, role: e.target.value as DirectorRole, group: '', regions: [] })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <select value={editingDirector.role} onChange={(e) => setEditingDirector({ ...editingDirector, role: e.target.value as DirectorRole })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
                                   <option value="admin">Administrator</option>
                                   <option value="executive_director">Director Executiv</option>
                                   <option value="launch_consultant">Director Consultant Lansare</option>
                                 </select>
                                 {editingDirector.role === 'admin' ? (
                                   <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
-                                ) : editingDirector.role === 'executive_director' ? (
-                                  <select
-                                    multiple
-                                    value={getDirectorRegions(editingDirector)}
-                                    onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined, group: undefined })}
-                                    className="min-h-[86px] rounded-md border border-slate-300 px-3 py-2 text-sm"
-                                  >
-                                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                                  </select>
                                 ) : (
-                                  <select value={editingDirector.group || ''} onChange={(e) => setEditingDirector({ ...editingDirector, group: e.target.value, regions: [], region: undefined })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    <option value="">Grup</option>
-                                    {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
-                                  </select>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
+                                      <select
+                                        multiple
+                                        value={getDirectorRegions(editingDirector)}
+                                        onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined })}
+                                        className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                      >
+                                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                                      </select>
+                                    </div>
+                                    {manageExtraGroups ? (
+                                      <div>
+                                        <div className="mb-1 flex items-center justify-between">
+                                          <p className="text-[11px] font-black uppercase text-slate-500">Grupuri de lansare (orice regiune)</p>
+                                          <button
+                                            type="button"
+                                            onClick={() => { setManageExtraGroups(false); setEditingDirector({ ...editingDirector, groups: [], group: undefined }) }}
+                                            className="text-[11px] font-black text-slate-400 hover:text-red-600"
+                                          >
+                                            Renunta
+                                          </button>
+                                        </div>
+                                        <select
+                                          multiple
+                                          value={getDirectorGroups(editingDirector)}
+                                          onChange={(e) => setEditingDirector({ ...editingDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value), group: undefined })}
+                                          className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                        >
+                                          {groups.map((group) => <option key={group.name} value={group.name}>{group.name} ({group.region})</option>)}
+                                        </select>
+                                        <p className="mt-1 text-[11px] font-semibold text-slate-500">Rol dublu: gestioneaza grupuri de lansare si din alte regiuni.</p>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setManageExtraGroups(true)}
+                                        className="w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 hover:border-[#c8102e] hover:text-[#c8102e]"
+                                      >
+                                        + Gestioneaza grupuri din alte regiuni
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                                 <div className="space-y-2">
                                   <input value={temporaryPasswordInput} onChange={(e) => setTemporaryPasswordInput(e.target.value)} placeholder="Parola temporara noua" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -1368,6 +1560,30 @@ export default function AdminDashboard() {
                     ))}
                 </tbody>
               </table>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'performers' && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-black">Membri Gold</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <button onClick={addPerformer} className="rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white hover:bg-[#9f1239]">+ Adauga membru</button>
+              </div>
+              {editablePerformers.map((p) => (
+                <div key={p.id} className="grid gap-2 rounded-md border border-[#ded8ce] bg-white p-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} placeholder="Nume" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <input value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} placeholder="Grup" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <input value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} placeholder="Regiune" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <input value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} placeholder="Business" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <input type="number" value={p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) })} placeholder="Membri adusi" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="Link profil BNI" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
+                  <button onClick={() => deletePerformer(p.id)} className="rounded border border-[#c8102e] px-2 py-1 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2]">Sterge</button>
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -1666,6 +1882,9 @@ export default function AdminDashboard() {
 
         {activeTab === 'groups' && (currentUser.role === 'admin' || currentUser.role === 'executive_director') && (
           <section>
+            <datalist id="director-names">
+              {directors.map((director) => <option key={director.id} value={director.name} />)}
+            </datalist>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-2xl font-black">{currentUser.role === 'admin' ? 'Toate grupurile' : 'Grupuri din regiune'}</h2>
               <button onClick={() => setShowAddGroup(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga grup</button>
@@ -1679,7 +1898,7 @@ export default function AdminDashboard() {
                     <option value="">Regiune</option>
                     {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                   </select>
-                  <input value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Director responsabil" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <input list="director-names" value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Director responsabil (consultant lansare)" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   <input
                     type="number"
                     min={0}
@@ -1722,7 +1941,7 @@ export default function AdminDashboard() {
                       <select value={editingGroup.region} onChange={(e) => setEditingGroup({ ...editingGroup, region: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                       </select>
-                      <input value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                      <input list="director-names" value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila (consultant lansare)" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-xs font-black uppercase text-slate-500">
                           Membri deja validati
