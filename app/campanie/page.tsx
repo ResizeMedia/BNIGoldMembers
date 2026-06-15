@@ -110,16 +110,18 @@ export default function Campanie() {
       slotDomains: getActiveSlotDomains(group, priorityDomains),
       seats: getLaunchSeats(group, priorityDomains),
       launched: isGroupLaunched(group),
+      newMembers: priorityDomains.filter((domain) => domain.group === group.name && domain.filledFromRecommendationId != null).length,
     }))
     .sort((a, b) => b.launchPercent - a.launchPercent || b.recommendedMembers - a.recommendedMembers || a.name.localeCompare(b.name)), [groups, priorityDomains, recommendations])
 
   const filteredGroups = rankedGroups
     .filter((group) => (selectedRegion ? group.region === selectedRegion : true))
     .filter((group) => statusFilter === 'all' || (statusFilter === 'active' ? group.launched : !group.launched))
-  // Right panel: launched groups ordered by WHEN they reached their target (earliest first).
-  const launchedGroups = rankedGroups
-    .filter((group) => group.launched)
-    .sort((a, b) => (a.launchedOn || '').localeCompare(b.launchedOn || '') || a.name.localeCompare(b.name))
+  // Right panel celebrates groups that REACHED their target, ranked by the number of
+  // new members brought in through the 6-to-Gold competition (recommendation-validated).
+  const celebratedGroups = rankedGroups
+    .filter((group) => group.recommendedMembers >= group.launchTargetMembers)
+    .sort((a, b) => b.newMembers - a.newMembers || a.name.localeCompare(b.name))
   const regionCounts = rankedGroups.reduce<Record<string, number>>((acc, group) => {
     acc[group.region] = (acc[group.region] || 0) + 1
     return acc
@@ -335,30 +337,25 @@ export default function Campanie() {
           </div>
 
           <aside className="rounded-lg border border-[#ded8ce] bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-black text-[#1f2326]">Grupuri active</h2>
-            <p className="mt-1 text-xs font-semibold text-[#5f6469]">Si-au atins pragul, in ordinea cronologica a lansarii.</p>
+            <h2 className="text-lg font-black text-[#1f2326]">Celebram urmatoarele grupuri</h2>
+            <p className="mt-1 text-xs font-semibold text-[#5f6469]">Si-au atins tinta, in ordinea membrilor noi adusi prin competitia 6 to Gold.</p>
             <div className="mt-4 space-y-3">
-              {launchedGroups.length > 0 ? launchedGroups.map((group, index) => (
+              {celebratedGroups.length > 0 ? celebratedGroups.map((group, index) => (
                 <div key={group.name} className="rounded-md border border-[#ded8ce] bg-[#fbfaf7] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-black text-[#1f2326]">#{index + 1} {group.name}</p>
                       <p className="text-xs font-semibold text-[#5f6469]">{group.region}</p>
                     </div>
-                    <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">Activ</span>
+                    <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">Tinta atinsa</span>
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-[#5f6469]">
-                    {group.recommendedMembers}/{group.launchTargetMembers} membri
+                  <p className="mt-2 text-xs font-black text-[#c8102e]">
+                    +{group.newMembers} membri noi in urma competitiei 6 to Gold
                   </p>
-                  {group.launchedOn && (
-                    <p className="mt-1 text-xs font-black text-[#c8102e]">
-                      Pragul atins: {group.launchedOn}
-                    </p>
-                  )}
                 </div>
               )) : (
                 <div className="rounded-md border border-dashed border-[#ded8ce] bg-[#fbfaf7] p-3 text-sm font-semibold text-[#5f6469]">
-                  Nu exista inca grupuri active. Primele care isi ating pragul vor aparea aici.
+                  Niciun grup nu si-a atins inca tinta. Primele reusite vor aparea aici.
                 </div>
               )}
             </div>
