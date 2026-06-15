@@ -307,6 +307,9 @@ export const initialPriorityDomains: PriorityDomain[] = [
   { id: 16, name: 'Nutritie', description: 'Consultanta nutritionala si wellness', status: 'open', group: 'BNI HEALTH' },
   { id: 17, name: 'Kinetoterapie', description: 'Recuperare medicala si terapie fizica', status: 'open', group: 'BNI HEALTH' },
   { id: 18, name: 'Farmacie', description: 'Produse farmaceutice si parafarmacie', status: 'open', group: 'BNI HEALTH' },
+  { id: 19, name: 'Contabilitate', description: 'Servicii contabile si financiare', status: 'open', group: 'BNI Future' },
+  { id: 20, name: 'Asigurari', description: 'Asigurari generale si de viata', status: 'open', group: 'BNI Future' },
+  { id: 21, name: 'Avocatura', description: 'Consultanta juridica si drept comercial', status: 'open', group: 'BNI Future' },
 ]
 
 export const goldThreshold = 6
