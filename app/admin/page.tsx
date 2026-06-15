@@ -1050,7 +1050,7 @@ export default function AdminDashboard() {
           {tabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); setError('') }}
               className={`rounded-md px-3 py-2 text-left text-sm font-black transition ${
                 activeTab === tab.key
                   ? 'bg-[#c8102e] text-white'
