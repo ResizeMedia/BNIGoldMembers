@@ -577,18 +577,18 @@ export default function AdminDashboard() {
     })
   }, [directors, directorsLoadedFromServer])
 
-  // Restore an existing session on refresh. Runs again once server directors land,
-  // so the match works whether we have seed or server data.
+  // Restore an existing session on refresh and keep the logged-in user in sync with
+  // the latest directors. Without the re-sync, a refresh would match the SEED director
+  // first (mustChangePassword still set) and then never update once server data lands,
+  // trapping the user on the change-password screen.
   useEffect(() => {
-    if (isAuthenticated) return
     const savedId = sessionStorage.getItem(ADMIN_SESSION_KEY)
     if (!savedId) return
     const director = directors.find((item) => String(item.id) === savedId)
-    if (director) {
-      setCurrentUser(director)
-      setIsAuthenticated(true)
-    }
-  }, [directors, isAuthenticated])
+    if (!director) return
+    setCurrentUser(director)
+    setIsAuthenticated(true)
+  }, [directors])
 
   // Gold performers are persisted server-side too, mirroring the directors pattern.
   useEffect(() => {
