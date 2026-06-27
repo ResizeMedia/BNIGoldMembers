@@ -1,4 +1,4 @@
-export type DirectorRole = 'admin' | 'executive_director' | 'launch_consultant'
+export type DirectorRole = 'admin' | 'executive_director' | 'launch_consultant' | 'growth_consultant'
 export type RecommendationStatus = 'new' | 'recommendation_confirmed' | 'invited_bni' | 'member_bni' | 'rejected'
 export type DomainStatus = 'open' | 'filled'
 export const RECOMMENDATIONS_STORAGE_KEY = 'bni-gold-recommendations'

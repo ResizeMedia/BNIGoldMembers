@@ -67,7 +67,9 @@ function roleLabel(role: DirectorRole) {
     return 'Administrator'
   }
 
-  return role === 'executive_director' ? 'Director Executiv' : 'Director Consultant Lansare'
+  if (role === 'executive_director') return 'Director Executiv'
+  if (role === 'growth_consultant') return 'Director Consultant Crestere'
+  return 'Director Consultant Lansare'
 }
 
 function accessLabel(director: Director) {
@@ -1419,6 +1421,7 @@ export default function AdminDashboard() {
                     <option value="admin">Administrator</option>
                     <option value="executive_director">Director Executiv</option>
                     <option value="launch_consultant">Director Consultant Lansare</option>
+                    <option value="growth_consultant">Director Consultant Crestere</option>
                   </select>
                 </label>
                 <span className="text-xs font-semibold text-slate-400">{displayedDirectors.length} afisati</span>
@@ -1440,6 +1443,7 @@ export default function AdminDashboard() {
                     <option value="admin">Administrator</option>
                     <option value="executive_director">Director Executiv</option>
                     <option value="launch_consultant">Director Consultant Lansare</option>
+                    <option value="growth_consultant">Director Consultant Crestere</option>
                   </select>
                   {newDirector.role === 'admin' ? (
                     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
@@ -1525,6 +1529,7 @@ export default function AdminDashboard() {
                                   <option value="admin">Administrator</option>
                                   <option value="executive_director">Director Executiv</option>
                                   <option value="launch_consultant">Director Consultant Lansare</option>
+                    <option value="growth_consultant">Director Consultant Crestere</option>
                                 </select>
                                 {editingDirector.role === 'admin' ? (
                                   <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
