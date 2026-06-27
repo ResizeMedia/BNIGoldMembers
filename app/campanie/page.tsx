@@ -122,8 +122,10 @@ export default function Campanie() {
   const celebratedGroups = rankedGroups
     .filter((group) => group.recommendedMembers >= group.launchTargetMembers)
     .sort((a, b) => b.newMembers - a.newMembers || a.name.localeCompare(b.name))
-  const regionCounts = rankedGroups.reduce<Record<string, number>>((acc, group) => {
-    acc[group.region] = (acc[group.region] || 0) + 1
+  const regionStats = rankedGroups.reduce<Record<string, { forming: number; formed: number }>>((acc, group) => {
+    acc[group.region] = acc[group.region] || { forming: 0, formed: 0 }
+    if (group.launched) acc[group.region].formed += 1
+    else acc[group.region].forming += 1
     return acc
   }, {})
 
@@ -213,10 +215,14 @@ export default function Campanie() {
 
         <div className="rounded-lg border border-[#ded8ce] bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-3xl font-black text-[#1f2326]">Harta grupurilor in lansare</h2>
+            <h2 className="text-3xl font-black text-[#1f2326]">Harta grupurilor BNI Romania</h2>
             {selectedRegion && <span className="rounded bg-[#fff1f2] px-2 py-1 text-xs font-black text-[#c8102e]">{selectedRegion}</span>}
           </div>
           <p className="mt-1 text-sm font-semibold text-[#5f6469]">Click pe judet pentru filtrarea grupurilor.</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-[11px] font-black uppercase text-[#5f6469]">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#c8102e]" /> Grupuri active</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border border-[#c8102e] bg-white" /> Grupuri in formare</span>
+          </div>
 
           <div className={`relative mt-5 aspect-[4/3] rounded-lg border border-[#ded8ce] bg-white transition ${selectedRegion ? 'ring-2 ring-[#c8102e]/25' : ''}`}>
             <img
@@ -224,18 +230,29 @@ export default function Campanie() {
               alt="Harta Romaniei pe judete"
               className={`absolute inset-0 h-full w-full rounded-lg object-contain p-2 transition duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}
             />
-            {Object.entries(regionCounts).map(([region, count]) => (
-              <button
-                key={region}
-                onClick={() => setSelectedRegion(region)}
-                title={`${region}: ${count} grupuri in formare`}
-                className={`group absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#c8102e] text-xs font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
-              >
-                {count}
-                <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">
-                  {region}: {count}
-                </span>
-              </button>
+            {Object.entries(regionStats).map(([region, stat]) => (
+              <div key={region} className={`absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1`}>
+                {stat.formed > 0 && (
+                  <button
+                    onClick={() => setSelectedRegion(region)}
+                    title={`${region}: ${stat.formed} grupuri active`}
+                    className={`group relative flex h-6 w-6 items-center justify-center rounded-full bg-[#c8102e] text-xs font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
+                  >
+                    {stat.formed}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.formed} active</span>
+                  </button>
+                )}
+                {stat.forming > 0 && (
+                  <button
+                    onClick={() => setSelectedRegion(region)}
+                    title={`${region}: ${stat.forming} grupuri in formare`}
+                    className={`group relative flex h-6 w-6 items-center justify-center rounded-full border border-[#c8102e] bg-white text-xs font-black text-[#c8102e] shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
+                  >
+                    {stat.forming}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.forming} in formare</span>
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>

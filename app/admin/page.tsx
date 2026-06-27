@@ -861,6 +861,19 @@ export default function AdminDashboard() {
     setGroups((prev) => prev.filter((g) => g.name !== name))
   }
 
+  // <option> list grouped by region (alpha) with groups alpha inside each region.
+  const groupedGroupOptions = (list: Group[]) =>
+    Array.from(new Set(list.map((g) => g.region)))
+      .sort((a, b) => a.localeCompare(b, 'ro'))
+      .map((region) => (
+        <optgroup key={region} label={region}>
+          {list
+            .filter((g) => g.region === region)
+            .sort((a, b) => a.name.localeCompare(b.name, 'ro'))
+            .map((g) => <option key={g.name} value={g.name}>{g.name}</option>)}
+        </optgroup>
+      ))
+
   const cancelEditGroup = () => {
     setEditingGroupName('')
     setEditingGroup(null)
@@ -1461,14 +1474,14 @@ export default function AdminDashboard() {
                         </select>
                       </div>
                       <div>
-                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Grupuri (lansare)</p>
+                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Grupuri BNI</p>
                         <select
                           multiple
                           value={newDirector.groups}
                           onChange={(e) => setNewDirector({ ...newDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value) })}
                           className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                         >
-                          {visibleGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                          {groupedGroupOptions(visibleGroups)}
                         </select>
                       </div>
                       <p className="text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru selectie multipla. Poti aloca si regiuni si grupuri (rol dublu).</p>
@@ -1561,7 +1574,7 @@ export default function AdminDashboard() {
                                       </div>
                                       <div>
                                         <div className="mb-1 flex items-center justify-between gap-2">
-                                          <p className="text-[11px] font-black uppercase text-slate-500">Grupuri de lansare</p>
+                                          <p className="text-[11px] font-black uppercase text-slate-500">Grupuri BNI</p>
                                           {manageExtraGroups && (
                                             <button
                                               type="button"
@@ -1579,7 +1592,7 @@ export default function AdminDashboard() {
                                             onChange={(e) => setEditingDirector({ ...editingDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value), group: undefined })}
                                             className="min-h-[120px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                                           >
-                                            {groups.map((group) => <option key={group.name} value={group.name}>{group.name} ({group.region})</option>)}
+                                            {groupedGroupOptions(groups)}
                                           </select>
                                         ) : (
                                           <button
