@@ -230,30 +230,32 @@ export default function Campanie() {
               alt="Harta Romaniei pe judete"
               className={`absolute inset-0 h-full w-full rounded-lg object-contain p-2 transition duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}
             />
-            {Object.entries(regionStats).map(([region, stat]) => (
-              <div key={region} className={`absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1`}>
-                {stat.formed > 0 && (
-                  <button
-                    onClick={() => setSelectedRegion(region)}
-                    title={`${region}: ${stat.formed} grupuri active`}
-                    className={`group relative flex h-6 w-6 items-center justify-center rounded-full bg-[#c8102e] text-xs font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
-                  >
-                    {stat.formed}
-                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.formed} active</span>
-                  </button>
-                )}
-                {stat.forming > 0 && (
-                  <button
-                    onClick={() => setSelectedRegion(region)}
-                    title={`${region}: ${stat.forming} grupuri in formare`}
-                    className={`group relative flex h-6 w-6 items-center justify-center rounded-full border border-[#c8102e] bg-white text-xs font-black text-[#c8102e] shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
-                  >
-                    {stat.forming}
-                    <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.forming} in formare</span>
-                  </button>
-                )}
-              </div>
-            ))}
+            <div className={`absolute inset-0 transition-transform duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}>
+              {Object.entries(regionStats).map(([region, stat]) => (
+                <div key={region} className={`absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5`}>
+                  {stat.formed > 0 && (
+                    <button
+                      onClick={() => setSelectedRegion(region)}
+                      title={`${region}: ${stat.formed} grupuri active`}
+                      className={`group relative flex h-5 w-5 items-center justify-center rounded-full bg-[#c8102e] text-[10px] font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
+                    >
+                      {stat.formed}
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.formed} active</span>
+                    </button>
+                  )}
+                  {stat.forming > 0 && (
+                    <button
+                      onClick={() => setSelectedRegion(region)}
+                      title={`${region}: ${stat.forming} grupuri in formare`}
+                      className={`group relative flex h-5 w-5 items-center justify-center rounded-full border border-[#c8102e] bg-white text-[10px] font-black text-[#c8102e] shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
+                    >
+                      {stat.forming}
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">{region}: {stat.forming} in formare</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
