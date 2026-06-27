@@ -232,7 +232,7 @@ export default function Campanie() {
             />
             <div className={`absolute inset-0 transition-transform duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}>
               {Object.entries(regionStats).map(([region, stat]) => (
-                <div key={region} className={`absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5`}>
+                <div key={region} className={`absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 hover:z-40`}>
                   {stat.formed > 0 && (
                     <button
                       onClick={() => setSelectedRegion(region)}
