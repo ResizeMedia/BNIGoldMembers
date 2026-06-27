@@ -1522,66 +1522,82 @@ export default function AdminDashboard() {
                         {editingDirectorId === director.id && editingDirector && (
                           <tr className="border-t border-slate-100 bg-slate-50">
                             <td colSpan={6} className="px-4 py-4">
-                              <div className="grid gap-3 lg:grid-cols-5">
-                                <input value={editingDirector.name} onChange={(e) => setEditingDirector({ ...editingDirector, name: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                                <input value={editingDirector.email} onChange={(e) => setEditingDirector({ ...editingDirector, email: e.target.value })} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                                <select value={editingDirector.role} onChange={(e) => setEditingDirector({ ...editingDirector, role: e.target.value as DirectorRole })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                  <option value="admin">Administrator</option>
-                                  <option value="executive_director">Director Executiv</option>
-                                  <option value="launch_consultant">Director Consultant Lansare</option>
-                    <option value="growth_consultant">Director Consultant Crestere</option>
-                                </select>
-                                {editingDirector.role === 'admin' ? (
-                                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <div>
-                                      <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
-                                      <select
-                                        multiple
-                                        value={getDirectorRegions(editingDirector)}
-                                        onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined })}
-                                        className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                                      >
-                                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                                      </select>
-                                    </div>
-                                    {manageExtraGroups ? (
+                              <div className="space-y-3">
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                  <label className="text-[11px] font-black uppercase text-slate-500">
+                                    Nume
+                                    <input value={editingDirector.name} onChange={(e) => setEditingDirector({ ...editingDirector, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                                  </label>
+                                  <label className="text-[11px] font-black uppercase text-slate-500">
+                                    Email
+                                    <input value={editingDirector.email} onChange={(e) => setEditingDirector({ ...editingDirector, email: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                                  </label>
+                                  <label className="text-[11px] font-black uppercase text-slate-500">
+                                    Rol
+                                    <select value={editingDirector.role} onChange={(e) => setEditingDirector({ ...editingDirector, role: e.target.value as DirectorRole })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950">
+                                      <option value="admin">Administrator</option>
+                                      <option value="executive_director">Director Executiv</option>
+                                      <option value="launch_consultant">Director Consultant Lansare</option>
+                                      <option value="growth_consultant">Director Consultant Crestere</option>
+                                    </select>
+                                  </label>
+                                </div>
+
+                                <div className="grid items-start gap-3 lg:grid-cols-[2fr_1fr]">
+                                  {editingDirector.role === 'admin' ? (
+                                    <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">Acces complet la toate regiunile si grupurile</div>
+                                  ) : (
+                                    <div className="grid gap-3 sm:grid-cols-2">
                                       <div>
-                                        <div className="mb-1 flex items-center justify-between">
-                                          <p className="text-[11px] font-black uppercase text-slate-500">Grupuri de lansare (orice regiune)</p>
-                                          <button
-                                            type="button"
-                                            onClick={() => { setManageExtraGroups(false); setEditingDirector({ ...editingDirector, groups: [], group: undefined }) }}
-                                            className="text-[11px] font-black text-slate-400 hover:text-red-600"
-                                          >
-                                            Renunta
-                                          </button>
-                                        </div>
+                                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
                                         <select
                                           multiple
-                                          value={getDirectorGroups(editingDirector)}
-                                          onChange={(e) => setEditingDirector({ ...editingDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value), group: undefined })}
-                                          className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                          value={getDirectorRegions(editingDirector)}
+                                          onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined })}
+                                          className="min-h-[120px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                                         >
-                                          {groups.map((group) => <option key={group.name} value={group.name}>{group.name} ({group.region})</option>)}
+                                          {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                                         </select>
-                                        <p className="mt-1 text-[11px] font-semibold text-slate-500">Rol dublu: gestioneaza grupuri de lansare si din alte regiuni.</p>
                                       </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => setManageExtraGroups(true)}
-                                        className="w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 hover:border-[#c8102e] hover:text-[#c8102e]"
-                                      >
-                                        + Gestioneaza grupuri din alte regiuni
-                                      </button>
-                                    )}
+                                      <div>
+                                        <div className="mb-1 flex items-center justify-between gap-2">
+                                          <p className="text-[11px] font-black uppercase text-slate-500">Grupuri de lansare</p>
+                                          {manageExtraGroups && (
+                                            <button
+                                              type="button"
+                                              onClick={() => { setManageExtraGroups(false); setEditingDirector({ ...editingDirector, groups: [], group: undefined }) }}
+                                              className="text-[11px] font-black text-slate-400 hover:text-red-600"
+                                            >
+                                              Renunta
+                                            </button>
+                                          )}
+                                        </div>
+                                        {manageExtraGroups ? (
+                                          <select
+                                            multiple
+                                            value={getDirectorGroups(editingDirector)}
+                                            onChange={(e) => setEditingDirector({ ...editingDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value), group: undefined })}
+                                            className="min-h-[120px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                          >
+                                            {groups.map((group) => <option key={group.name} value={group.name}>{group.name} ({group.region})</option>)}
+                                          </select>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => setManageExtraGroups(true)}
+                                            className="h-[120px] w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 hover:border-[#c8102e] hover:text-[#c8102e]"
+                                          >
+                                            + Grupuri din alte regiuni (rol dublu)
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="space-y-2">
+                                    <p className="text-[11px] font-black uppercase text-slate-500">Parola temporara</p>
+                                    <input value={temporaryPasswordInput} onChange={(e) => setTemporaryPasswordInput(e.target.value)} placeholder="Parola temporara noua" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                                    <button onClick={setTemporaryPasswordForDirector} className="w-full rounded-md bg-[#c8102e] px-3 py-2 text-xs font-black text-white hover:bg-[#9f1239]">Seteaza temporara</button>
                                   </div>
-                                )}
-                                <div className="space-y-2">
-                                  <input value={temporaryPasswordInput} onChange={(e) => setTemporaryPasswordInput(e.target.value)} placeholder="Parola temporara noua" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                                  <button onClick={setTemporaryPasswordForDirector} className="w-full rounded-md bg-[#c8102e] px-3 py-2 text-xs font-black text-white hover:bg-[#9f1239]">Seteaza temporara</button>
                                 </div>
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2">
