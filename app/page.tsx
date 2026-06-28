@@ -1,366 +1,129 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
-import LaunchSeats from '@/components/LaunchSeats'
+import { useEffect, useState } from 'react'
 import {
-  DOMAINS_STORAGE_KEY,
-  GROUPS_STORAGE_KEY,
-  Group,
-  PriorityDomain,
-  RECOMMENDATIONS_STORAGE_KEY,
-  Recommendation,
-  getActiveSlotDomains,
-  getLaunchCompletionPercent,
-  getLaunchProgressLabel,
-  getLaunchSeats,
-  getMemberLeaderboard,
-  getRecommendedMemberCount,
-  isGroupActive,
-  initialGroups,
-  initialPriorityDomains,
-  initialRecommendations,
+  GoldPerformer,
+  getGoldProgress,
+  goldThreshold,
+  initialGoldPerformers,
 } from '@/lib/bni-data'
 
-const mapPositions: Record<string, string> = {
-  Arges:             'left-[47%] top-[63.3%]',
-  Bihor:             'left-[17.7%] top-[41%]',
-  'Braila-Galati':   'left-[74.8%] top-[63.9%]',
-  'Galati-Braila':   'left-[76%] top-[52.5%]',
-  Brasov:            'left-[51%] top-[50.1%]',
-  Bucuresti:         'left-[60.2%] top-[76%]',
-  Buzau:             'left-[65%] top-[60%]',
-  Cluj:              'left-[35.2%] top-[32.6%]',
-  Constanta:         'left-[81.9%] top-[80.4%]',
-  Iasi:              'left-[70.6%] top-[23.8%]',
-  Maramures:         'left-[38.6%] top-[15.8%]',
-  Mures:             'left-[45.2%] top-[36.6%]',
-  Prahova:           'left-[58%] top-[62.9%]',
-  Salaj:             'left-[31.8%] top-[25%]',
-  Sibiu:             'left-[41.8%] top-[49.5%]',
-  Timis:             'left-[11.8%] top-[52%]',
-  Tulcea:            'left-[83.4%] top-[65.4%]',
-  Valcea:            'left-[40.5%] top-[62.6%]',
-}
-
-const kickoffDatesByGroup: Record<string, string> = {
-  'BNI Future': 'Data in confirmare',
-  'BNI Green Light': 'Data in confirmare',
-  'BNI Vision': 'Data in confirmare',
+function initials(name: string) {
+  return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
 export default function Home() {
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
-  const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false)
-  const [groups, setGroups] = useState<Group[]>(initialGroups)
-  const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
-  const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
+  const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
 
   useEffect(() => {
-    const storedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
-    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
-    const storedRecommendations = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
-
-    if (storedGroups) {
-      try {
-        const parsed = JSON.parse(storedGroups) as Group[]
-        if (Array.isArray(parsed)) setGroups(parsed)
-      } catch {
-        setGroups(initialGroups)
-      }
-    }
-
-    if (storedDomains) {
-      try {
-        const parsed = JSON.parse(storedDomains) as PriorityDomain[]
-        if (Array.isArray(parsed)) setPriorityDomains(parsed)
-      } catch {
-        setPriorityDomains(initialPriorityDomains)
-      }
-    }
-
-    if (storedRecommendations) {
-      try {
-        const parsed = JSON.parse(storedRecommendations) as Recommendation[]
-        if (Array.isArray(parsed)) setRecommendations(parsed)
-      } catch {
-        setRecommendations(initialRecommendations)
-      }
-    }
+    fetch('/api/performers')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && Array.isArray(json.data)) setPerformers(json.data)
+      })
+      .catch(() => {})
   }, [])
 
-  const rankedGroups = useMemo(() => groups
-    .filter(isGroupActive)
-    .map((group) => ({
-      ...group,
-      launchPercent: getLaunchCompletionPercent(group, priorityDomains),
-      launchLabel: getLaunchProgressLabel(group, priorityDomains),
-      recommendedMembers: getRecommendedMemberCount(group, priorityDomains),
-      slotDomains: getActiveSlotDomains(group, priorityDomains),
-      seats: getLaunchSeats(group, priorityDomains),
-    }))
-    .sort((a, b) => b.launchPercent - a.launchPercent || b.recommendedMembers - a.recommendedMembers || a.name.localeCompare(b.name)), [groups, priorityDomains, recommendations])
-
-  const filteredGroups = selectedRegion ? rankedGroups.filter((group) => group.region === selectedRegion) : rankedGroups
-  const launchedGroups = rankedGroups.filter((group) => group.recommendedMembers >= group.launchTargetMembers || group.status.toLowerCase().includes('lansat'))
-  const regionCounts = rankedGroups.reduce<Record<string, number>>((acc, group) => {
-    acc[group.region] = (acc[group.region] || 0) + 1
-    return acc
-  }, {})
-
-  const totalRecommendations = recommendations.length
-  const filledDomains = priorityDomains.filter((domain) => domain.status === 'filled').length
-  const memberLeaders = getMemberLeaderboard(recommendations)
-  const visibleMemberLeaders = memberLeaders.slice(0, 5)
+  const sorted = [...performers].sort(
+    (a, b) => b.sponsoredMembers - a.sponsoredMembers || b.competitionRecommendations - a.competitionRecommendations || a.name.localeCompare(b.name)
+  )
+  const goldMembers = sorted.filter((m) => m.sponsoredMembers >= goldThreshold)
+  const podium = sorted.slice(0, 3)
 
   return (
     <main className="min-h-screen bg-[#f7f6f3] text-[#1f2326]">
-      <section className="border-b border-[#9f1239] bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">BNI Gold Members Romania</h1>
-          <p className="mx-auto mt-4 max-w-3xl text-lg font-medium text-white/95">
-            Conectam membrii, impartasim recomandari, construim relatii de afaceri.
-          </p>
-          <p className="mx-auto mt-3 max-w-4xl text-sm font-semibold text-white/85">
-            Competitia recomandarilor pentru grupurile in formare arata cine ajuta fiecare grup sa ajunga mai aproape de lansare.
-          </p>
+      <section className="bg-gradient-to-br from-[#ed1c24] via-[#d71920] to-[#9f1239] text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/85">BNI Romania</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Gold Club Members</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded bg-white px-3 py-1 text-sm font-black text-[#c8102e]">{goldMembers.length} membri Gold</span>
+              <span className="rounded bg-white/20 px-3 py-1 text-sm font-black">Prag: {goldThreshold} membri adusi</span>
+            </div>
+          </div>
+
+          {podium.length > 0 && (
+            <div className="grid w-full max-w-md grid-cols-3 items-end gap-3 lg:w-auto">
+              {[podium[1], podium[0], podium[2]].map((member, i) => {
+                if (!member) return <div key={i} />
+                const height = member === podium[0] ? 'h-16' : member === podium[1] ? 'h-12' : 'h-10'
+                const place = member === podium[0] ? 1 : member === podium[1] ? 2 : 3
+                return (
+                  <div key={member.id} className="flex flex-col items-center">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-white text-sm font-black text-[#c8102e]">{initials(member.name)}</div>
+                    <p className="mt-1 text-center text-[11px] font-black leading-tight">{member.name}</p>
+                    <div className={`mt-1.5 flex ${height} w-full items-start justify-center rounded-t-md bg-white/15 pt-1 text-xl font-black`}>{place}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
       <section className="border-b border-[#ded8ce] bg-white">
-        <div className="mx-auto grid max-w-7xl gap-2 px-4 py-3 sm:grid-cols-3 sm:px-6 lg:px-8">
-          {[
-            { label: 'Grupuri in lansare', value: rankedGroups.length },
-            { label: 'Persoane recomandate', value: totalRecommendations },
-            { label: 'Colegi noi', value: filledDomains },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between rounded-md border border-[#ded8ce] bg-[#f7f6f3] px-4 py-3">
-              <p className="text-xs font-black uppercase tracking-wide text-[#5f6469]">{item.label}</p>
-              <p className="text-2xl font-black text-[#c8102e]">{item.value}</p>
-            </div>
-          ))}
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-5 px-4 py-6 sm:px-6 lg:flex-row lg:px-8">
+          <img src="/gold-club-pin.png" alt="Pin GOLD CLUB MEMBER" className="h-20 w-auto shrink-0 drop-shadow" />
+          <div className="text-sm leading-6 text-[#1f2326]">
+            <p>
+              <span className="font-black">Membrii Gold Club</span> sunt recunoscuti pentru ca au recomandat sase (6) sau mai multe persoane noi in comunitatea BNI (oricare grup din regiune, orice perioada de timp).
+            </p>
+            <p className="mt-2">
+              Ei primesc o insigna speciala de membru si un pin cu diamant, impreuna cu recunoastere in cadrul grupului lor si pe site-ul national. Exista si evenimente regionale pentru ca membrii sa interactioneze cu alti lideri din BNI.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-2 lg:px-8">
-        <div className="rounded-lg border border-[#ded8ce] bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="text-3xl font-black text-[#1f2326]">Top 5 Giveri</h2>
-              <p className="mt-1 text-sm font-semibold text-[#5f6469]">Membrii care dau tonul competitiei.</p>
-            </div>
-            {memberLeaders.length > 5 && (
-              <button
-                onClick={() => setIsLeaderboardModalOpen(true)}
-                className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
-              >
-                Vizualizeaza clasamentul complet
-              </button>
-            )}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-black uppercase text-[#e62612] sm:text-2xl">Gold Club Members in BNI Romania</h2>
+            <span className="h-1 w-24 bg-[#c8102e]" />
           </div>
+          <Link href="/campanie" className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]">
+            Vezi Campania &quot;6 to Gold&quot;
+          </Link>
+        </div>
 
-          <div className="mt-5 space-y-3">
-            {visibleMemberLeaders.map((member, index) => (
-              <div
-                key={member.name}
-                className={`flex items-center justify-between gap-4 rounded-md border p-3 ${
-                  index < 3 ? 'border-[#c8102e]/25 bg-[#fff1f2]' : 'border-[#ded8ce] bg-[#fbfaf7]'
-                }`}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#c8102e] text-sm font-black text-white">{index + 1}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-black text-[#1f2326]">{member.name}</p>
-                    <p className="truncate text-xs font-black uppercase tracking-wide text-[#c8102e]">{member.group}</p>
-                    <p className="text-xs text-[#5f6469]">{member.sent} recomandari, {member.completed} membri BNI</p>
-                  </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {sorted.map((member, index) => {
+            const progress = getGoldProgress(member)
+            const isGold = member.sponsoredMembers >= goldThreshold
+            const remaining = Math.max(goldThreshold - member.sponsoredMembers, 0)
+            return (
+              <article key={member.id} className="overflow-hidden rounded-md border border-[#ded8ce] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className={`relative flex h-24 items-center justify-center ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`}>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/85 bg-white text-xl font-black text-[#c8102e]">{initials(member.name)}</div>
+                  <span className="absolute left-2 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#c8102e]">#{index + 1}</span>
+                  <span className="absolute bottom-2 right-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1f2326]">{member.sponsoredMembers}/{goldThreshold}</span>
                 </div>
-                <p className="shrink-0 text-xl font-black text-[#1f2326]">{member.points}p</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-[#ded8ce] bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-3xl font-black text-[#1f2326]">Harta grupurilor in lansare</h2>
-            {selectedRegion && <span className="rounded bg-[#fff1f2] px-2 py-1 text-xs font-black text-[#c8102e]">{selectedRegion}</span>}
-          </div>
-          <p className="mt-1 text-sm font-semibold text-[#5f6469]">Click pe judet pentru filtrarea grupurilor.</p>
-
-          <div className={`relative mt-5 aspect-[4/3] rounded-lg border border-[#ded8ce] bg-white transition ${selectedRegion ? 'ring-2 ring-[#c8102e]/25' : ''}`}>
-            <img
-              src="/romania-counties.png"
-              alt="Harta Romaniei pe judete"
-              className={`absolute inset-0 h-full w-full rounded-lg object-contain p-2 transition duration-300 ${selectedRegion ? 'scale-110' : 'scale-100'}`}
-            />
-            {Object.entries(regionCounts).map(([region, count]) => (
-              <button
-                key={region}
-                onClick={() => setSelectedRegion(region)}
-                title={`${region}: ${count} grupuri in formare`}
-                className={`group absolute ${mapPositions[region] || 'left-1/2 top-1/2'} z-10 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#c8102e] text-xs font-black text-white shadow-[0_4px_10px_rgba(31,35,38,0.30)] transition hover:z-20 hover:scale-110 ${selectedRegion === region ? 'ring-4 ring-[#c8102e]/20' : ''}`}
-              >
-                {count}
-                <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2326] px-2 py-1 text-[11px] font-black text-white shadow-lg group-hover:block">
-                  {region}: {count}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black text-[#1f2326]">Clasament grupuri</h2>
-            <p className="text-sm text-[#5f6469]">Ordonare dupa rata de finalizare pentru lansare.</p>
-          </div>
-          {selectedRegion && (
-            <button
-              onClick={() => setSelectedRegion(null)}
-              className="rounded-md border border-[#ded8ce] bg-white px-3 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
-            >
-              Toate judetele
-            </button>
-          )}
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-3">
-            {filteredGroups.map((group, index) => (
-              <article key={group.name} className="rounded-lg border border-[#ded8ce] bg-white p-3 shadow-sm">
-                <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-center">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1f2326] text-xs font-black text-white">#{index + 1}</span>
-                      <div>
-                        <h3 className="text-sm font-black text-[#1f2326]">{group.name}</h3>
-                        <p className="text-xs font-semibold text-[#5f6469]">{group.region}, {group.director}</p>
-                      </div>
+                <div className="p-3 text-center">
+                  <h3 className="text-sm font-black uppercase leading-tight text-[#e62612]">{member.name}</h3>
+                  <p className="mt-0.5 text-xs font-black uppercase text-[#1f2326]">{member.group}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-[#5f6469]">{member.region} · {member.business}</p>
+                  <div className="mt-2">
+                    <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase text-[#5f6469]">
+                      <span>{isGold ? 'GOLD' : `${remaining} pana la prag`}</span>
+                      <span>{progress}%</span>
                     </div>
-                    <div className="mt-3">
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide text-[#5f6469]">
-                        <span>Lansare</span>
-                        <span>{group.recommendedMembers}/{group.launchTargetMembers} membri</span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={group.recommendedMembers}>
-                        <div className="h-full rounded-full bg-[#c8102e] transition-all" style={{ width: `${group.launchPercent}%` }} />
-                      </div>
-                      <p className="mt-1 text-[11px] font-semibold leading-4 text-[#5f6469]">{group.launchLabel}</p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e5dfd5]">
+                      <div className={`h-full rounded-full ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`} style={{ width: `${progress}%` }} />
                     </div>
                   </div>
-
-                  <div>
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {group.slotDomains.map((domain) => (
-                        <Link
-                          key={domain.id}
-                          href={`/recommendations?group=${encodeURIComponent(group.name)}&domain=${encodeURIComponent(domain.name)}`}
-                          title={`${domain.name} - ${domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}`}
-                          className={`min-h-[68px] rounded-md border px-3 py-2 transition hover:border-[#c8102e] ${
-                            domain.status === 'filled'
-                              ? 'border-emerald-300 bg-emerald-50'
-                              : 'border-[#ded8ce] bg-[#fbfaf7]'
-                          }`}
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${domain.status === 'filled' ? 'bg-emerald-500' : 'bg-[#c8102e]'}`} />
-                            <p className="line-clamp-2 text-[13px] font-black leading-4 text-[#1f2326]">{domain.name}</p>
-                          </div>
-                          <p className={`mt-1 line-clamp-2 text-[11px] font-black leading-4 ${domain.status === 'filled' ? 'text-emerald-700' : 'text-[#c8102e]'}`}>
-                            {domain.status === 'filled' ? `Recomandat de: ${domain.filledBy}` : 'Cautat'}
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-                    <LaunchSeats seats={group.seats} showLegend />
-                  </div>
+                  {member.bniProfileUrl && (
+                    <a href={member.bniProfileUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block rounded-md border border-[#c8102e] px-3 py-1.5 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2]">
+                      Profil BNI
+                    </a>
+                  )}
                 </div>
               </article>
-            ))}
-          </div>
-
-          <aside className="rounded-lg border border-[#ded8ce] bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-black text-[#1f2326]">Grupuri lansate</h2>
-            <p className="mt-1 text-xs font-semibold text-[#5f6469]">Target atins si Kick-off Party.</p>
-            <div className="mt-4 space-y-3">
-              {launchedGroups.length > 0 ? launchedGroups.map((group, index) => (
-                <div key={group.name} className="rounded-md border border-[#ded8ce] bg-[#fbfaf7] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-[#1f2326]">#{index + 1} {group.name}</p>
-                      <p className="text-xs font-semibold text-[#5f6469]">{group.region}</p>
-                    </div>
-                    <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">Lansat</span>
-                  </div>
-                  <p className="mt-2 text-xs font-semibold text-[#5f6469]">
-                    {group.recommendedMembers}/{group.launchTargetMembers} membri
-                  </p>
-                  <p className="mt-1 text-xs font-black text-[#c8102e]">
-                    Kick-off Party: {kickoffDatesByGroup[group.name] || 'Data in confirmare'}
-                  </p>
-                </div>
-              )) : (
-                <div className="rounded-md border border-dashed border-[#ded8ce] bg-[#fbfaf7] p-3 text-sm font-semibold text-[#5f6469]">
-                  Nu exista inca grupuri cu targetul de lansare atins. Primele reusite vor aparea aici.
-                </div>
-              )}
-            </div>
-          </aside>
+            )
+          })}
         </div>
       </section>
-
-      {isLeaderboardModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2326]/65 px-4 py-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="leaderboard-modal-title"
-        >
-          <div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-lg border border-[#ded8ce] bg-white shadow-2xl">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#ded8ce] px-5 py-4">
-              <div>
-                <h2 id="leaderboard-modal-title" className="text-2xl font-black text-[#1f2326]">
-                  Clasamentul complet Top Giveri
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#5f6469]">
-                  Toti membrii care au trimis recomandari in competitie.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsLeaderboardModalOpen(false)}
-                className="rounded-md border border-[#c8102e] bg-white px-4 py-2 text-sm font-black text-[#c8102e] hover:bg-[#fff1f2]"
-              >
-                Inchide
-              </button>
-            </div>
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto p-5">
-              {memberLeaders.map((member, index) => (
-                <div
-                  key={`${member.name}-${member.group}`}
-                  className={`flex items-center justify-between gap-4 rounded-md border p-4 ${
-                    index < 3 ? 'border-[#c8102e]/25 bg-[#fff1f2]' : 'border-[#ded8ce] bg-[#fbfaf7]'
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-[#c8102e] text-lg font-black text-white">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-lg font-black text-[#1f2326]">{member.name}</p>
-                      <p className="truncate text-xs font-black uppercase tracking-wide text-[#c8102e]">{member.group}</p>
-                      <p className="text-sm text-[#5f6469]">{member.sent} recomandari, {member.completed} membri BNI</p>
-                    </div>
-                  </div>
-                  <p className="shrink-0 text-2xl font-black text-[#1f2326]">{member.points}p</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   )
 }

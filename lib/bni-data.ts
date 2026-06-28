@@ -1,4 +1,4 @@
-export type DirectorRole = 'admin' | 'executive_director' | 'launch_consultant'
+export type DirectorRole = 'admin' | 'executive_director' | 'launch_consultant' | 'growth_consultant'
 export type RecommendationStatus = 'new' | 'recommendation_confirmed' | 'invited_bni' | 'member_bni' | 'rejected'
 export type DomainStatus = 'open' | 'filled'
 export const RECOMMENDATIONS_STORAGE_KEY = 'bni-gold-recommendations'
@@ -9,7 +9,7 @@ export const EMAIL_TEMPLATES_STORAGE_KEY = 'bni-gold-email-templates'
 export const EMAIL_LOG_STORAGE_KEY = 'bni-gold-email-log'
 export const REGULATION_STORAGE_KEY = 'bni-gold-regulation'
 export const SMTP_SETTINGS_STORAGE_KEY = 'bni-gold-smtp-settings'
-export type EmailTemplateType = 'recommendation_confirmation' | 'status_update' | 'new_member_thanks'
+export type EmailTemplateType = 'recommendation_confirmation' | 'status_update' | 'new_member_thanks' | 'recommendation_notification'
 
 export interface Director {
   id: number
@@ -20,7 +20,9 @@ export interface Director {
   mustChangePassword?: boolean
   region?: string
   regions?: string[]
+  /** @deprecated legacy single launch group — use `groups`. Read via getDirectorGroups(). */
   group?: string
+  groups?: string[]
 }
 
 export interface Group {
@@ -31,6 +33,8 @@ export interface Group {
   currentMembers: number
   launchTargetMembers: number
   active?: boolean
+  /** ISO date the group reached its launch target / went active. Present = launched. */
+  launchedOn?: string
 }
 
 export interface Recommendation {
@@ -72,6 +76,7 @@ export interface GoldPerformer {
   business: string
   sponsoredMembers: number
   competitionRecommendations: number
+  bniProfileUrl?: string
 }
 
 export interface EmailTemplate {
@@ -171,6 +176,12 @@ export const initialEmailTemplates: EmailTemplate[] = [
     subject: 'Multumim pentru noul membru adus in BNI',
     body: 'Salut {{recommenderName}},\n\nFelicitari! Recomandarea ta pentru {{recommendedName}} a ajutat grupul {{group}} sa creasca printr-un membru nou BNI.\n\nAcesta este exact spiritul de giver care construieste comunitatea.\nBNI Gold Members Romania',
   },
+  {
+    type: 'recommendation_notification',
+    title: 'Notificare director: recomandare noua de validat',
+    subject: 'Recomandare noua pentru grupul {{group}} - de validat',
+    body: 'Salut {{directorName}},\n\nA fost inregistrata o recomandare noua pentru grupul {{group}}:\n\n- Recomandata de: {{recommenderName}}\n- Persoana recomandata: {{recommendedName}}\n- Domeniu: {{domain}}\n\nTe rugam sa o validezi cat mai repede din panoul de administrare.\n\nBNI Gold Members Romania',
+  },
 ]
 
 export const regions = [
@@ -265,9 +276,9 @@ export const initialDirectors: Director[] = [
   { id: 12, name: 'Nicoleta Sacu', email: 'nicoleta.sacu@bni.local', role: 'executive_director', temporaryPassword: 'bni2026' },
   { id: 13, name: 'Monica', email: 'monica@bni.local', role: 'executive_director', temporaryPassword: 'bni2026' },
   { id: 14, name: 'Andrei Aron', email: 'andrei.aron@resize-media.com', role: 'executive_director', temporaryPassword: 'bni2026' },
-  { id: 15, name: 'Adina Arjoca', email: 'adina@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', group: 'BNI GOLD' },
-  { id: 16, name: 'Calin Hirza', email: 'calin@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', group: 'BNI MAGNUM OPUS' },
-  { id: 17, name: 'Adrian Covasa', email: 'adrian@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', group: 'BNI HEALTH' },
+  { id: 15, name: 'Adina Arjoca', email: 'adina@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', groups: ['BNI GOLD'] },
+  { id: 16, name: 'Calin Hirza', email: 'calin@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', groups: ['BNI MAGNUM OPUS'] },
+  { id: 17, name: 'Adrian Covasa', email: 'adrian@bni.ro', role: 'launch_consultant', temporaryPassword: 'admin2024', groups: ['BNI HEALTH'] },
 ]
 
 export const initialRecommendations: Recommendation[] = [
@@ -298,19 +309,22 @@ export const initialPriorityDomains: PriorityDomain[] = [
   { id: 16, name: 'Nutritie', description: 'Consultanta nutritionala si wellness', status: 'open', group: 'BNI HEALTH' },
   { id: 17, name: 'Kinetoterapie', description: 'Recuperare medicala si terapie fizica', status: 'open', group: 'BNI HEALTH' },
   { id: 18, name: 'Farmacie', description: 'Produse farmaceutice si parafarmacie', status: 'open', group: 'BNI HEALTH' },
+  { id: 19, name: 'Contabilitate', description: 'Servicii contabile si financiare', status: 'open', group: 'BNI Future' },
+  { id: 20, name: 'Asigurari', description: 'Asigurari generale si de viata', status: 'open', group: 'BNI Future' },
+  { id: 21, name: 'Avocatura', description: 'Consultanta juridica si drept comercial', status: 'open', group: 'BNI Future' },
 ]
 
 export const goldThreshold = 6
 
 export const initialGoldPerformers: GoldPerformer[] = [
-  { id: 1, name: 'Angela Cojocaru', group: 'BNI ZEPPELIN TIMIS', region: 'Timis', business: 'Consultanta business', sponsoredMembers: 8, competitionRecommendations: 2 },
-  { id: 2, name: 'Alexandra Revnic', group: 'ELITE BNI BUCURESTI', region: 'Bucuresti', business: 'Training si leadership', sponsoredMembers: 7, competitionRecommendations: 1 },
-  { id: 3, name: 'Bianca Costea', group: 'WAVE BNI CONSTANTA', region: 'Constanta', business: 'Servicii financiare', sponsoredMembers: 6, competitionRecommendations: 3 },
-  { id: 4, name: 'Cristian Iepure', group: 'BNI FORTE CLUJ', region: 'Cluj', business: 'Consultanta juridica', sponsoredMembers: 5, competitionRecommendations: 2 },
-  { id: 5, name: 'Catalina Costache', group: 'BNI PARETO SIBIU', region: 'Sibiu', business: 'Marketing strategic', sponsoredMembers: 5, competitionRecommendations: 1 },
-  { id: 6, name: 'Cleopatra Catana', group: 'BNI CREATIV CLUJ', region: 'Cluj', business: 'Arhitectura si design', sponsoredMembers: 4, competitionRecommendations: 2 },
-  { id: 7, name: 'Ana Marinescu', group: 'BNI GOLD', region: 'Timis', business: 'IT Services', sponsoredMembers: 4, competitionRecommendations: 1 },
-  { id: 8, name: 'Sorin Dima', group: 'BNI MAGNUM OPUS', region: 'Salaj', business: 'Constructii', sponsoredMembers: 3, competitionRecommendations: 1 },
+  { id: 1, name: 'Angela Cojocaru', group: 'BNI ZEPPELIN TIMIS', region: 'Timis', business: 'Consultanta business', sponsoredMembers: 8, competitionRecommendations: 2, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 2, name: 'Alexandra Revnic', group: 'ELITE BNI BUCURESTI', region: 'Bucuresti', business: 'Training si leadership', sponsoredMembers: 7, competitionRecommendations: 1, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 3, name: 'Bianca Costea', group: 'WAVE BNI CONSTANTA', region: 'Constanta', business: 'Servicii financiare', sponsoredMembers: 6, competitionRecommendations: 3, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 4, name: 'Cristian Iepure', group: 'BNI FORTE CLUJ', region: 'Cluj', business: 'Consultanta juridica', sponsoredMembers: 5, competitionRecommendations: 2, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 5, name: 'Catalina Costache', group: 'BNI PARETO SIBIU', region: 'Sibiu', business: 'Marketing strategic', sponsoredMembers: 5, competitionRecommendations: 1, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 6, name: 'Cleopatra Catana', group: 'BNI CREATIV CLUJ', region: 'Cluj', business: 'Arhitectura si design', sponsoredMembers: 4, competitionRecommendations: 2, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 7, name: 'Ana Marinescu', group: 'BNI GOLD', region: 'Timis', business: 'IT Services', sponsoredMembers: 4, competitionRecommendations: 1, bniProfileUrl: 'https://www.bniconnectglobal.com' },
+  { id: 8, name: 'Sorin Dima', group: 'BNI MAGNUM OPUS', region: 'Salaj', business: 'Constructii', sponsoredMembers: 3, competitionRecommendations: 1, bniProfileUrl: 'https://www.bniconnectglobal.com' },
 ]
 
 export function getGroupRegion(groupName: string, groups: Group[] = initialGroups) {
@@ -321,21 +335,32 @@ export function getDirectorRegions(director: Director) {
   return Array.from(new Set([...(director.regions || []), director.region].filter(Boolean) as string[]))
 }
 
+// Launch scope. Normalizes the legacy single `group` field into the `groups` array.
+export function getDirectorGroups(director: Director) {
+  if (director.groups && director.groups.length) return Array.from(new Set(director.groups))
+  return director.group ? [director.group] : []
+}
+
+// Visibility + scope are additive: a director sees groups in their executive regions
+// AND any groups they launch-consult, regardless of the primary `role` label.
 export function getGroupsForDirector(director: Director, groups: Group[]) {
   if (director.role === 'admin') {
     return groups
   }
 
-  if (director.role === 'executive_director') {
-    const directorRegions = getDirectorRegions(director)
-    return groups.filter((group) => directorRegions.includes(group.region))
-  }
-
-  return groups.filter((group) => group.name === director.group)
+  const directorRegions = getDirectorRegions(director)
+  const directorGroups = getDirectorGroups(director)
+  return groups.filter((group) => directorRegions.includes(group.region) || directorGroups.includes(group.name))
 }
 
 export function isGroupActive(group: Group) {
   return group.active !== false
+}
+
+// A group is launched/active in the org once it has a launchedOn date set
+// (directors set it in admin when the group reaches its target and goes live).
+export function isGroupLaunched(group: Group) {
+  return Boolean(group.launchedOn)
 }
 
 export function getRecommendedMemberCount(group: Group | string, domains: PriorityDomain[]) {
@@ -356,6 +381,17 @@ export function getLaunchCompletionPercent(group: Group, domains: PriorityDomain
 export function getLaunchProgressLabel(group: Group, domains: PriorityDomain[]) {
   const recommendedMembers = getRecommendedMemberCount(group, domains)
   const remaining = Math.max(group.launchTargetMembers - recommendedMembers, 0)
+
+  // Active (launched) groups grow toward a growth target; forming groups launch.
+  if (isGroupLaunched(group)) {
+    if (remaining === 0) {
+      return 'Tinta de crestere atinsa'
+    }
+    if (remaining <= 2) {
+      return `Aproape de tinta de crestere: mai sunt ${remaining} membri`
+    }
+    return `Mai sunt ${remaining} membri pana la tinta de crestere`
+  }
 
   if (remaining === 0) {
     return 'Pregatit pentru lansare'
