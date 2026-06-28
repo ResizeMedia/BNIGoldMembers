@@ -144,6 +144,7 @@ export default function AdminDashboard() {
   const [showAddDirector, setShowAddDirector] = useState(false)
   const [showAddDomain, setShowAddDomain] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
+  const [groupSearch, setGroupSearch] = useState('')
   const [newDirector, setNewDirector] = useState({ name: '', email: '', role: 'launch_consultant' as DirectorRole, temporaryPassword: '', regions: [] as string[], groups: [] as string[] })
   const [newDomain, setNewDomain] = useState({ name: '', description: '', group: '' })
   const [newGroup, setNewGroup] = useState({ name: '', region: '', director: '', currentMembers: 0, launchTargetMembers: 25, active: true, launched: false })
@@ -1958,9 +1959,17 @@ export default function AdminDashboard() {
             <datalist id="director-names">
               {directors.map((director) => <option key={director.id} value={director.name} />)}
             </datalist>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-black">{currentUser.role === 'admin' ? 'Toate grupurile' : 'Grupuri din regiune'}</h2>
-              <button onClick={() => setShowAddGroup(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga grup</button>
+              <div className="flex items-center gap-2">
+                <input
+                  value={groupSearch}
+                  onChange={(e) => setGroupSearch(e.target.value)}
+                  placeholder="Cauta grup..."
+                  className="w-48 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <button onClick={() => setShowAddGroup(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga grup</button>
+              </div>
             </div>
 
             {showAddGroup && (
@@ -2036,7 +2045,7 @@ export default function AdminDashboard() {
             )}
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {visibleGroups.map((group) => (
+              {visibleGroups.filter((group) => !groupSearch || group.name.toLowerCase().includes(groupSearch.toLowerCase())).map((group) => (
                 <div key={group.name} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   {editingGroupName === group.name && editingGroup ? (
                     <div className="space-y-3">
