@@ -2025,7 +2025,7 @@ export default function AdminDashboard() {
                       Activ in competitie
                     </label>
                     <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <span className="text-sm font-black text-slate-700">{newGroup.launched ? 'Grup activ' : 'Grup in formare'}</span>
+                      <span className="text-sm font-black text-slate-700">{newGroup.launched ? 'Grup lansat' : 'Grup in formare'}</span>
                       <button
                         type="button"
                         onClick={() => setNewGroup({ ...newGroup, launched: !newGroup.launched })}
@@ -2069,7 +2069,7 @@ export default function AdminDashboard() {
                         Activ in lista de competitie
                       </label>
                       <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                        <span className="text-sm font-black text-slate-700">{editingGroup.launchedOn ? 'Grup activ' : 'Grup in lansare'}</span>
+                        <span className="text-sm font-black text-slate-700">{editingGroup.launchedOn ? 'Grup lansat' : 'Grup in lansare'}</span>
                         <button
                           type="button"
                           onClick={() => setEditingGroup({ ...editingGroup, launchedOn: editingGroup.launchedOn ? undefined : new Date().toISOString().slice(0, 10) })}
