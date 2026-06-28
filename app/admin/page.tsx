@@ -245,8 +245,14 @@ export default function AdminDashboard() {
       if (json.data.photoUrl) patch.photoUrl = json.data.photoUrl
       if (json.data.company) patch.company = json.data.company
       if (json.data.domain) {
-        const match = predefinedDomains.find((d: string) => d.toLowerCase() === json.data.domain.toLowerCase())
-        if (match) patch.business = match
+        const raw = json.data.domain.toLowerCase()
+        const match = predefinedDomains.find((d: string) => d.toLowerCase() === raw)
+          || predefinedDomains.find((d: string) => raw.includes(d.toLowerCase()) || d.toLowerCase().includes(raw))
+        if (match) {
+          patch.business = match
+        } else {
+          setError(`Domeniu BNI: "${json.data.domain}" — nu s-a gasit corespondenta. Alege manual din dropdown.`)
+        }
       }
       updatePerformer(id, patch)
     } catch {
