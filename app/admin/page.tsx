@@ -34,6 +34,7 @@ import {
   getMemberLeaderboard,
   getRecommendedMemberCount,
   GoldPerformer,
+  goldThreshold,
   initialDirectors,
   initialGoldPerformers,
   initialEmailTemplates,
@@ -136,6 +137,10 @@ export default function AdminDashboard() {
   const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
   const [performersLoadedFromServer, setPerformersLoadedFromServer] = useState(false)
   const [scrapingId, setScrapingId] = useState<number | null>(null)
+  const [editingPerformerId, setEditingPerformerId] = useState<number | null>(null)
+  const [performerSearch, setPerformerSearch] = useState('')
+  const [performerRegionFilter, setPerformerRegionFilter] = useState('')
+  const [performerGroupFilter, setPerformerGroupFilter] = useState('')
   const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
   const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(initialEmailTemplates)
@@ -1690,65 +1695,72 @@ export default function AdminDashboard() {
 
         {activeTab === 'performers' && (
           <section>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-black">Membri Gold</h2>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={performerSearch} onChange={(e) => setPerformerSearch(e.target.value)} placeholder="Cauta dupa nume..." className="w-44 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                <select value={performerRegionFilter} onChange={(e) => setPerformerRegionFilter(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                  <option value="">Toate regiunile</option>
+                  {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <select value={performerGroupFilter} onChange={(e) => setPerformerGroupFilter(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                  <option value="">Toate grupurile</option>
+                  {groupedGroupOptions(groups)}
+                </select>
+                <span className="text-xs font-semibold text-slate-400">
+                  {editablePerformers.filter((p) =>
+                    (!performerSearch || p.name.toLowerCase().includes(performerSearch.toLowerCase())) &&
+                    (!performerRegionFilter || p.region === performerRegionFilter) &&
+                    (!performerGroupFilter || p.group === performerGroupFilter)
+                  ).length} afisati
+                </span>
                 <button onClick={addPerformer} className="rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white hover:bg-[#9f1239]">+ Adauga membru</button>
               </div>
-              {editablePerformers.map((p) => (
-                <div key={p.id} className="rounded-md border border-[#ded8ce] bg-white p-3">
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Nume
-                      <input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
-                    </label>
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Companie
-                      <input value={p.company || ''} onChange={(e) => updatePerformer(p.id, { company: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
-                    </label>
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Grup BNI
-                      <select value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
-                        <option value="">Alege grup</option>
-                        {groupedGroupOptions(groups)}
-                      </select>
-                    </label>
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Regiune
-                      <select value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
-                        <option value="">Alege regiune</option>
-                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                      </select>
-                    </label>
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Domeniu activitate
-                      <select value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
-                        <option value="">Alege domeniu</option>
-                        {predefinedDomains.map((d: string) => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </label>
-                    <label className="text-[10px] font-black uppercase text-slate-500">
-                      Membri adusi
-                      <input type="number" min={0} value={p.sponsoredMembers === 0 ? '' : p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) || 0 })} placeholder="0" className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
-                    </label>
-                    <label className="col-span-full text-[10px] font-black uppercase text-slate-500 lg:col-span-2">
-                      Link profil BNI
-                      <input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="https://bni-romania.com/ro-RO/memberdetails?..." className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
-                    </label>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {p.photoUrl && <img src={p.photoUrl} alt={p.name} className="h-8 w-8 rounded-full object-cover" />}
-                    <button
-                      onClick={() => scrapePerformerProfile(p.id)}
-                      disabled={scrapingId === p.id}
-                      className="rounded border border-[#c8102e] px-3 py-1 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2] disabled:opacity-50"
-                    >
-                      {scrapingId === p.id ? 'Se preia...' : 'Preia date'}
-                    </button>
-                    <button onClick={() => deletePerformer(p.id)} className="rounded border border-slate-300 px-3 py-1 text-xs font-black text-slate-500 hover:bg-slate-50">Sterge</button>
-                  </div>
+            </div>
+            <div className="space-y-1">
+              {editablePerformers
+                .filter((p) =>
+                  (!performerSearch || p.name.toLowerCase().includes(performerSearch.toLowerCase())) &&
+                  (!performerRegionFilter || p.region === performerRegionFilter) &&
+                  (!performerGroupFilter || p.group === performerGroupFilter)
+                )
+                .map((p) => (
+                <div key={p.id} className="rounded-md border border-[#ded8ce] bg-white">
+                  {editingPerformerId === p.id ? (
+                    <div className="space-y-2 p-3">
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500">Nume<input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" /></label>
+                        <label className="text-[10px] font-black uppercase text-slate-500">Companie<input value={p.company || ''} onChange={(e) => updatePerformer(p.id, { company: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" /></label>
+                        <label className="text-[10px] font-black uppercase text-slate-500">Grup BNI<select value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950"><option value="">Alege grup</option>{groupedGroupOptions(groups)}</select></label>
+                        <label className="text-[10px] font-black uppercase text-slate-500">Regiune<select value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950"><option value="">Alege regiune</option>{regions.map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
+                        <label className="text-[10px] font-black uppercase text-slate-500">Domeniu activitate<select value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950"><option value="">Alege domeniu</option>{predefinedDomains.map((d: string) => <option key={d} value={d}>{d}</option>)}</select></label>
+                        <label className="text-[10px] font-black uppercase text-slate-500">Membri adusi<input type="number" min={0} value={p.sponsoredMembers === 0 ? '' : p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) || 0 })} placeholder="0" className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" /></label>
+                        <label className="col-span-full text-[10px] font-black uppercase text-slate-500 lg:col-span-2">Link profil BNI<input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="https://bni-romania.com/ro-RO/memberdetails?..." className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" /></label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {p.photoUrl && <img src={p.photoUrl} alt={p.name} className="h-8 w-8 rounded-full object-cover" />}
+                        <button onClick={() => scrapePerformerProfile(p.id)} disabled={scrapingId === p.id} className="rounded border border-[#c8102e] px-3 py-1 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2] disabled:opacity-50">{scrapingId === p.id ? 'Se preia...' : 'Preia date'}</button>
+                        <button onClick={() => setEditingPerformerId(null)} className="rounded border border-slate-300 px-3 py-1 text-xs font-black text-slate-500 hover:bg-slate-50">Inchide</button>
+                        <button onClick={() => deletePerformer(p.id)} className="rounded border border-red-300 px-3 py-1 text-xs font-black text-[#c8102e] hover:bg-red-50">Sterge</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      {p.photoUrl ? (
+                        <img src={p.photoUrl} alt={p.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#c8102e] text-[10px] font-black text-white">{p.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate text-sm font-black text-[#1f2326]">{p.name}</span>
+                          {p.company && <span className="truncate text-xs text-slate-400">{p.company}</span>}
+                        </div>
+                        <p className="truncate text-[11px] text-slate-500">{p.group || '—'} · {p.region || '—'} · {p.business || '—'} · {p.sponsoredMembers}/{goldThreshold}</p>
+                      </div>
+                      <button onClick={() => setEditingPerformerId(p.id)} className="shrink-0 rounded border border-slate-300 px-3 py-1 text-xs font-black text-slate-600 hover:bg-slate-50">Editeaza</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
