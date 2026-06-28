@@ -134,6 +134,7 @@ export default function AdminDashboard() {
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
   const [performersLoadedFromServer, setPerformersLoadedFromServer] = useState(false)
+  const [scrapingId, setScrapingId] = useState<number | null>(null)
   const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations)
   const [priorityDomains, setPriorityDomains] = useState<PriorityDomain[]>(initialPriorityDomains)
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(initialEmailTemplates)
@@ -226,6 +227,33 @@ export default function AdminDashboard() {
   function deletePerformer(id: number) {
     if (!window.confirm('Stergi acest membru?')) return
     setPerformers((prev) => prev.filter((performer) => performer.id !== id))
+  }
+
+  async function scrapePerformerProfile(id: number) {
+    const p = performers.find((item) => item.id === id)
+    if (!p?.bniProfileUrl) { setError('Seteaza link-ul profil BNI inainte de Preia date'); return }
+    setScrapingId(id)
+    try {
+      const res = await fetch('/api/scrape-bni-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: p.bniProfileUrl }),
+      })
+      const json = await res.json()
+      if (!json.success) { setError(json.error || 'Scraping esuat'); return }
+      const patch: Partial<GoldPerformer> = {}
+      if (json.data.photoUrl) patch.photoUrl = json.data.photoUrl
+      if (json.data.company) patch.company = json.data.company
+      if (json.data.domain) {
+        const match = predefinedDomains.find((d: string) => d.toLowerCase() === json.data.domain.toLowerCase())
+        if (match) patch.business = match
+      }
+      updatePerformer(id, patch)
+    } catch {
+      setError('Eroare la conectarea cu serverul')
+    } finally {
+      setScrapingId(null)
+    }
   }
 
   const toggleDirectorSort = (column: 'name' | 'email' | 'role') => {
@@ -1657,17 +1685,57 @@ export default function AdminDashboard() {
                 <button onClick={addPerformer} className="rounded-md bg-[#c8102e] px-4 py-2 text-sm font-black text-white hover:bg-[#9f1239]">+ Adauga membru</button>
               </div>
               {editablePerformers.map((p) => (
-                <div key={p.id} className="grid gap-2 rounded-md border border-[#ded8ce] bg-white p-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} placeholder="Nume" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <input value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} placeholder="Grup" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <select value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} className="rounded border border-[#ded8ce] px-2 py-1 text-sm">
-                    <option value="">Regiune</option>
-                    {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                  </select>
-                  <input value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} placeholder="Business" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <input type="number" value={p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) })} placeholder="Membri adusi" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="Link profil BNI" className="rounded border border-[#ded8ce] px-2 py-1 text-sm" />
-                  <button onClick={() => deletePerformer(p.id)} className="rounded border border-[#c8102e] px-2 py-1 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2]">Sterge</button>
+                <div key={p.id} className="rounded-md border border-[#ded8ce] bg-white p-3">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Nume
+                      <input value={p.name} onChange={(e) => updatePerformer(p.id, { name: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
+                    </label>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Companie
+                      <input value={p.company || ''} onChange={(e) => updatePerformer(p.id, { company: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
+                    </label>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Grup BNI
+                      <select value={p.group} onChange={(e) => updatePerformer(p.id, { group: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
+                        <option value="">Alege grup</option>
+                        {groupedGroupOptions(groups)}
+                      </select>
+                    </label>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Regiune
+                      <select value={p.region} onChange={(e) => updatePerformer(p.id, { region: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
+                        <option value="">Alege regiune</option>
+                        {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Domeniu activitate
+                      <select value={p.business} onChange={(e) => updatePerformer(p.id, { business: e.target.value })} className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950">
+                        <option value="">Alege domeniu</option>
+                        {predefinedDomains.map((d: string) => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Membri adusi
+                      <input type="number" min={0} value={p.sponsoredMembers === 0 ? '' : p.sponsoredMembers} onChange={(e) => updatePerformer(p.id, { sponsoredMembers: Number(e.target.value) || 0 })} placeholder="0" className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
+                    </label>
+                    <label className="col-span-full text-[10px] font-black uppercase text-slate-500 lg:col-span-2">
+                      Link profil BNI
+                      <input value={p.bniProfileUrl || ''} onChange={(e) => updatePerformer(p.id, { bniProfileUrl: e.target.value })} placeholder="https://bni-romania.com/ro-RO/memberdetails?..." className="mt-1 w-full rounded border border-[#ded8ce] px-2 py-1 text-sm font-normal text-slate-950" />
+                    </label>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {p.photoUrl && <img src={p.photoUrl} alt={p.name} className="h-8 w-8 rounded-full object-cover" />}
+                    <button
+                      onClick={() => scrapePerformerProfile(p.id)}
+                      disabled={scrapingId === p.id}
+                      className="rounded border border-[#c8102e] px-3 py-1 text-xs font-black text-[#c8102e] hover:bg-[#fff1f2] disabled:opacity-50"
+                    >
+                      {scrapingId === p.id ? 'Se preia...' : 'Preia date'}
+                    </button>
+                    <button onClick={() => deletePerformer(p.id)} className="rounded border border-slate-300 px-3 py-1 text-xs font-black text-slate-500 hover:bg-slate-50">Sterge</button>
+                  </div>
                 </div>
               ))}
             </div>

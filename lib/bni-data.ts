@@ -77,6 +77,8 @@ export interface GoldPerformer {
   sponsoredMembers: number
   competitionRecommendations: number
   bniProfileUrl?: string
+  photoUrl?: string
+  company?: string
 }
 
 export interface EmailTemplate {
