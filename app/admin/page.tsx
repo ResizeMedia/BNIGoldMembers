@@ -158,6 +158,7 @@ export default function AdminDashboard() {
   const [smtpTestStatus, setSmtpTestStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({ type: 'idle', message: '' })
   const [directorSort, setDirectorSort] = useState<{ column: 'name' | 'email' | 'role'; dir: 'asc' | 'desc' }>({ column: 'name', dir: 'asc' })
   const [directorRoleFilter, setDirectorRoleFilter] = useState<'all' | DirectorRole>('all')
+  const [directorSearch, setDirectorSearch] = useState('')
 
   const visibleGroups = useMemo(() => currentUser ? getGroupsForDirector(currentUser, groups) : [], [currentUser, groups])
   const visibleGroupNames = useMemo(() => new Set(visibleGroups.map((group) => group.name)), [visibleGroups])
@@ -185,9 +186,14 @@ export default function AdminDashboard() {
   }, [currentUser, directors, visibleGroupNames, visibleRegionNames])
 
   const displayedDirectors = useMemo(() => {
-    const filtered = directorRoleFilter === 'all'
+    let filtered = directorRoleFilter === 'all'
       ? visibleDirectors
       : visibleDirectors.filter((director) => director.role === directorRoleFilter)
+
+    if (directorSearch) {
+      const q = directorSearch.toLowerCase()
+      filtered = filtered.filter((d) => d.name.toLowerCase().includes(q))
+    }
 
     const value = (director: Director) => {
       if (directorSort.column === 'role') return roleLabel(director.role)
@@ -198,7 +204,7 @@ export default function AdminDashboard() {
       const cmp = value(a).localeCompare(value(b), 'ro')
       return directorSort.dir === 'asc' ? cmp : -cmp
     })
-  }, [visibleDirectors, directorRoleFilter, directorSort])
+  }, [visibleDirectors, directorRoleFilter, directorSearch, directorSort])
 
   const editablePerformers = useMemo(() => {
     if (!currentUser) return [] as GoldPerformer[]
@@ -1441,6 +1447,12 @@ export default function AdminDashboard() {
                     <option value="growth_consultant">Director Consultant Crestere</option>
                   </select>
                 </label>
+                <input
+                  value={directorSearch}
+                  onChange={(e) => setDirectorSearch(e.target.value)}
+                  placeholder="Cauta director..."
+                  className="w-44 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
                 <span className="text-xs font-semibold text-slate-400">{displayedDirectors.length} afisati</span>
               </div>
               {currentUser.role === 'admin' && (
