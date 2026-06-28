@@ -52,7 +52,11 @@ export default function Home() {
                 const place = member === podium[0] ? 1 : member === podium[1] ? 2 : 3
                 return (
                   <div key={member.id} className="flex flex-col items-center">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-white text-sm font-black text-[#c8102e]">{initials(member.name)}</div>
+                    {member.photoUrl ? (
+                      <img src={member.photoUrl} alt={member.name} className="h-11 w-11 rounded-full border-2 border-white object-cover" />
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-white text-sm font-black text-[#c8102e]">{initials(member.name)}</div>
+                    )}
                     <p className="mt-1 text-center text-[11px] font-black leading-tight">{member.name}</p>
                     <div className={`mt-1.5 flex ${height} w-full items-start justify-center rounded-t-md bg-white/15 pt-1 text-xl font-black`}>{place}</div>
                   </div>
@@ -95,8 +99,12 @@ export default function Home() {
             const remaining = Math.max(goldThreshold - member.sponsoredMembers, 0)
             return (
               <article key={member.id} className="overflow-hidden rounded-md border border-[#ded8ce] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div className={`relative flex h-24 items-center justify-center ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`}>
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/85 bg-white text-xl font-black text-[#c8102e]">{initials(member.name)}</div>
+                <div className={`relative flex aspect-square items-center justify-center ${isGold ? 'bg-[#c8102e]' : 'bg-[#1f2326]'}`}>
+                  {member.photoUrl ? (
+                    <img src={member.photoUrl} alt={member.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/85 bg-white text-xl font-black text-[#c8102e]">{initials(member.name)}</div>
+                  )}
                   <span className="absolute left-2 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#c8102e]">#{index + 1}</span>
                   <span className="absolute bottom-2 right-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1f2326]">{member.sponsoredMembers}/{goldThreshold}</span>
                 </div>
