@@ -114,7 +114,11 @@ export default function Home() {
                   <p className="mt-0.5 text-[11px] font-semibold text-[#5f6469]">{member.region} · {member.business}</p>
                   <div className="mt-2">
                     <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase text-[#5f6469]">
-                      <span>{isGold ? 'GOLD' : `${remaining} pana la prag`}</span>
+                      <span className="flex items-center gap-1">
+                        {isGold ? (
+                          <>GOLD {Array.from({ length: Math.floor(member.sponsoredMembers / goldThreshold) }, (_, i) => <span key={i} className="text-[11px]" style={{ color: '#d4a017' }}>&#9830;</span>)}</>
+                        ) : `${remaining} pana la prag`}
+                      </span>
                       <span>{progress}%</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-[#e5dfd5]">
