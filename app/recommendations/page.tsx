@@ -164,6 +164,31 @@ export default function Recommendations() {
       }
     }
 
+    // Notify the group's launch consultant + region's executive director(s) so they
+    // validate quickly. Sent server-side (server-stored SMTP) so it works for any
+    // submission, including public visitors with no SMTP in their browser. Best-effort.
+    const notificationTemplate = templates.find((template) => template.type === 'recommendation_notification')
+      || initialEmailTemplates.find((template) => template.type === 'recommendation_notification')
+    if (notificationTemplate) {
+      const region = groups.find((group) => group.name === formData.group)?.region
+      fetch('/api/notify-recommendation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recommendation: {
+            from: formData.recommendingMember,
+            to: formData.recommendedMember,
+            domain: formData.domain,
+            group: formData.group,
+          },
+          region,
+          template: { subject: notificationTemplate.subject, body: notificationTemplate.body },
+        }),
+      }).catch(() => {
+        // Best-effort notification; never blocks the recommendation submission.
+      })
+    }
+
     setSubmitted(true)
     setFormData((prev) => ({
       ...prev,
