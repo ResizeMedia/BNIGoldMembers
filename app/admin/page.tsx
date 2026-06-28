@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { predefinedDomains } from '@/lib/domain-options'
+import { domainEnToRo } from '@/lib/domain-en-ro'
 import LaunchSeats from '@/components/LaunchSeats'
 import {
   Director,
@@ -245,13 +246,18 @@ export default function AdminDashboard() {
       if (json.data.photoUrl) patch.photoUrl = json.data.photoUrl
       if (json.data.company) patch.company = json.data.company
       if (json.data.domain) {
-        const raw = json.data.domain.toLowerCase()
-        const match = predefinedDomains.find((d: string) => d.toLowerCase() === raw)
-          || predefinedDomains.find((d: string) => raw.includes(d.toLowerCase()) || d.toLowerCase().includes(raw))
-        if (match) {
-          patch.business = match
+        const translated = domainEnToRo[json.data.domain]
+        if (translated && (predefinedDomains as readonly string[]).includes(translated)) {
+          patch.business = translated
         } else {
-          setError(`Domeniu BNI: "${json.data.domain}" — nu s-a gasit corespondenta. Alege manual din dropdown.`)
+          const raw = json.data.domain.toLowerCase()
+          const fuzzy = predefinedDomains.find((d: string) => d.toLowerCase() === raw)
+            || predefinedDomains.find((d: string) => raw.includes(d.toLowerCase()) || d.toLowerCase().includes(raw))
+          if (fuzzy) {
+            patch.business = fuzzy
+          } else {
+            setError(`Domeniu BNI: "${json.data.domain}" — nu s-a gasit corespondenta automata. Alege manual din dropdown.`)
+          }
         }
       }
       updatePerformer(id, patch)
