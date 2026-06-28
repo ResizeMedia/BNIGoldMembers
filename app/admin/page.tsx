@@ -246,7 +246,8 @@ export default function AdminDashboard() {
       if (json.data.photoUrl) patch.photoUrl = json.data.photoUrl
       if (json.data.company) patch.company = json.data.company
       if (json.data.domain) {
-        const translated = domainEnToRo[json.data.domain]
+        const enKey = Object.keys(domainEnToRo).find((k) => k.toLowerCase() === json.data.domain.toLowerCase())
+        const translated = enKey ? domainEnToRo[enKey] : undefined
         if (translated && (predefinedDomains as readonly string[]).includes(translated)) {
           patch.business = translated
         } else {
