@@ -910,6 +910,9 @@ export default function AdminDashboard() {
     setManageExtraGroups(getDirectorGroups(director).length > 0)
     setTemporaryPasswordInput('')
     setError('')
+    setTimeout(() => {
+      document.querySelector(`[data-edit-director="${director.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
   }
 
   const cancelEditDirector = () => {
@@ -1533,7 +1536,7 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                         {editingDirectorId === director.id && editingDirector && (
-                          <tr className="border-t border-slate-100 bg-slate-50">
+                          <tr className="border-t border-slate-100 bg-slate-50" data-edit-director={director.id}>
                             <td colSpan={6} className="px-4 py-4">
                               <div className="space-y-3">
                                 <div className="grid gap-3 sm:grid-cols-3">
@@ -1567,7 +1570,7 @@ export default function AdminDashboard() {
                                           multiple
                                           value={getDirectorRegions(editingDirector)}
                                           onChange={(e) => setEditingDirector({ ...editingDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value), region: undefined })}
-                                          className="min-h-[120px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                          className="min-h-[200px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                                         >
                                           {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                                         </select>
@@ -1590,7 +1593,7 @@ export default function AdminDashboard() {
                                             multiple
                                             value={getDirectorGroups(editingDirector)}
                                             onChange={(e) => setEditingDirector({ ...editingDirector, groups: Array.from(e.target.selectedOptions, (option) => option.value), group: undefined })}
-                                            className="min-h-[120px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                            className="min-h-[200px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                                           >
                                             {groupedGroupOptions(groups)}
                                           </select>
@@ -1598,7 +1601,7 @@ export default function AdminDashboard() {
                                           <button
                                             type="button"
                                             onClick={() => setManageExtraGroups(true)}
-                                            className="h-[120px] w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 hover:border-[#c8102e] hover:text-[#c8102e]"
+                                            className="h-[200px] w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 hover:border-[#c8102e] hover:text-[#c8102e]"
                                           >
                                             + Grupuri din alte regiuni (rol dublu)
                                           </button>
