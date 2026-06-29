@@ -27,6 +27,9 @@ export default function Domains() {
     if (storedGroups) {
       try { setGroups(JSON.parse(storedGroups) as Group[]) } catch { /* ignore */ }
     }
+    fetch('/api/groups').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setGroups(j.data)
+    }).catch(() => {})
   }, [])
 
   const groupedDomains = useMemo(() => {

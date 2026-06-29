@@ -53,6 +53,10 @@ export default function Recommendations() {
       }
     }
 
+    fetch('/api/groups').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setGroups(j.data)
+    }).catch(() => {})
+
     const params = new URLSearchParams(window.location.search)
     const group = params.get('group') || ''
     const domain = params.get('domain') || ''

@@ -71,6 +71,10 @@ export default function Campanie() {
       }
     }
 
+    fetch('/api/groups').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setGroups(j.data)
+    }).catch(() => {})
+
     if (storedDomains) {
       try {
         const parsed = JSON.parse(storedDomains) as PriorityDomain[]
