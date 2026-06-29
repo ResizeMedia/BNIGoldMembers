@@ -1162,7 +1162,7 @@ export default function AdminDashboard() {
               {[
                 { label: 'Grupuri', value: stats.groups },
                 { label: 'Recomandari', value: stats.recommendations },
-                { label: 'Noi', value: stats.pending },
+                { label: 'In asteptare', value: stats.pending },
                 { label: 'Membri BNI', value: stats.completed },
                 { label: 'Domenii libere', value: stats.openDomains },
                 { label: 'Domenii recomandate', value: stats.filledDomains },
