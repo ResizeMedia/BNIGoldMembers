@@ -1,79 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { initialRecommendations } from '@/lib/bni-data'
 
-// Sample recommendations data (replace with database calls)
-const recommendations = [
-  {
-    id: 1,
-    from: 'John Doe',
-    to: 'Ana Popescu',
-    description: 'Digital Marketing Agency',
-    details: 'Great service for web presence',
-    date: '2024-05-20',
-    status: 'approved'
-  }
-]
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export async function GET() {
+const dataDir = path.join(process.cwd(), 'data')
+const filePath = path.join(dataDir, 'recommendations.json')
+
+async function readRecommendations() {
   try {
-    return NextResponse.json({
-      success: true,
-      data: recommendations,
-      total: recommendations.length
-    })
+    const raw = await fs.readFile(filePath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : initialRecommendations
   } catch {
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch recommendations' },
-      { status: 500 }
-    )
+    return initialRecommendations
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function GET() {
+  const data = await readRecommendations()
+  return NextResponse.json({ success: true, data })
+}
+
+export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-
-    // Validate request
-    if (!body.recommendingMember || !body.recommendedMember) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 }
-      )
+    if (!Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: 'Expected an array' }, { status: 400 })
     }
-
-    // Here you would typically:
-    // 1. Save to database
-    // 2. Send email notification
-    // 3. Create audit log
-
-    const newRecommendation = {
-      id: recommendations.length + 1,
-      from: body.recommendingMember,
-      to: body.recommendedMember,
-      group: body.group,
-      domain: body.domain,
-      recommendingGroup: body.recommendingGroup,
-      recommenderPhone: body.recommenderPhone,
-      recommenderEmail: body.recommenderEmail,
-      recommendedPhone: body.recommendedPhone,
-      contactNotes: body.contactNotes,
-      consentConfirmed: body.consentConfirmed,
-      description: body.businessDescription,
-      details: body.referralDetails,
-      date: new Date().toISOString().split('T')[0],
-      status: 'new'
-    }
-
-    recommendations.push(newRecommendation)
-
-    return NextResponse.json({
-      success: true,
-      data: newRecommendation,
-      message: 'Recommendation submitted successfully'
-    }, { status: 201 })
+    await fs.mkdir(dataDir, { recursive: true })
+    await fs.writeFile(filePath, JSON.stringify(body, null, 2), 'utf-8')
+    return NextResponse.json({ success: true })
   } catch {
-    return NextResponse.json(
-      { success: false, error: 'Failed to submit recommendation' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Failed to save' }, { status: 500 })
   }
 }

@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  DOMAINS_STORAGE_KEY,
   GROUPS_STORAGE_KEY,
   Group,
   PriorityDomain,
@@ -19,16 +18,15 @@ export default function Domains() {
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null)
 
   useEffect(() => {
-    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
-    if (storedDomains) {
-      try { setDomains(JSON.parse(storedDomains) as PriorityDomain[]) } catch { /* ignore */ }
-    }
     const storedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
     if (storedGroups) {
       try { setGroups(JSON.parse(storedGroups) as Group[]) } catch { /* ignore */ }
     }
     fetch('/api/groups').then((r) => r.json()).then((j) => {
       if (j?.success && Array.isArray(j.data)) setGroups(j.data)
+    }).catch(() => {})
+    fetch('/api/priority-domains').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setDomains(j.data)
     }).catch(() => {})
   }, [])
 

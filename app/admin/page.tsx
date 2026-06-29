@@ -9,9 +9,6 @@ import {
   DirectorRole,
   DomainStatus,
   DIRECTORS_STORAGE_KEY,
-  DOMAINS_STORAGE_KEY,
-  EMAIL_LOG_STORAGE_KEY,
-  EMAIL_TEMPLATES_STORAGE_KEY,
   EmailLog,
   EmailTemplate,
   Group,
@@ -19,10 +16,7 @@ import {
   PriorityDomain,
   Recommendation,
   RecommendationStatus,
-  REGULATION_STORAGE_KEY,
   RegulationContent,
-  RECOMMENDATIONS_STORAGE_KEY,
-  SMTP_SETTINGS_STORAGE_KEY,
   SmtpSettings,
   getActiveSlotDomains,
   getDirectorGroups,
@@ -127,13 +121,18 @@ export default function AdminDashboard() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [currentUser, setCurrentUser] = useState<Director | null>(null)
-  const [hasLoadedStoredState, setHasLoadedStoredState] = useState(false)
+
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
   const [directors, setDirectors] = useState<Director[]>(initialDirectors)
   const [directorsLoadedFromServer, setDirectorsLoadedFromServer] = useState(false)
   const [groupsLoadedFromServer, setGroupsLoadedFromServer] = useState(false)
   const [smtpLoadedFromServer, setSmtpLoadedFromServer] = useState(false)
+  const [domainsLoadedFromServer, setDomainsLoadedFromServer] = useState(false)
+  const [recommendationsLoadedFromServer, setRecommendationsLoadedFromServer] = useState(false)
+  const [regulationLoadedFromServer, setRegulationLoadedFromServer] = useState(false)
+  const [emailTemplatesLoadedFromServer, setEmailTemplatesLoadedFromServer] = useState(false)
+  const [emailLogLoadedFromServer, setEmailLogLoadedFromServer] = useState(false)
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
   const [performersLoadedFromServer, setPerformersLoadedFromServer] = useState(false)
@@ -516,96 +515,9 @@ export default function AdminDashboard() {
       }
     }
 
-    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
-    if (storedDomains) {
-      try {
-        const parsed = JSON.parse(storedDomains) as PriorityDomain[]
-        if (Array.isArray(parsed)) {
-          setPriorityDomains(parsed)
-        }
-      } catch {
-        setError('Nu am putut citi domeniile salvate local')
-      }
-    }
-
-    const storedRecommendations = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
-    if (storedRecommendations) {
-      try {
-        const parsed = JSON.parse(storedRecommendations) as Recommendation[]
-        if (Array.isArray(parsed)) {
-          setRecommendations(parsed)
-        }
-      } catch {
-        setError('Nu am putut citi recomandarile salvate local')
-      }
-    }
-
-    const storedEmailTemplates = window.localStorage.getItem(EMAIL_TEMPLATES_STORAGE_KEY)
-    if (storedEmailTemplates) {
-      try {
-        const parsed = JSON.parse(storedEmailTemplates) as EmailTemplate[]
-        if (Array.isArray(parsed)) {
-          // Merge in any template types added after this browser last saved (e.g. the
-          // recommendation_notification template) so the editor shows them.
-          const merged = [...parsed]
-          for (const template of initialEmailTemplates) {
-            if (!merged.some((item) => item.type === template.type)) merged.push(template)
-          }
-          setEmailTemplates(merged)
-        }
-      } catch {
-        setError('Nu am putut citi template-urile email salvate local')
-      }
-    }
-
-    const storedEmailLog = window.localStorage.getItem(EMAIL_LOG_STORAGE_KEY)
-    if (storedEmailLog) {
-      try {
-        const parsed = JSON.parse(storedEmailLog) as EmailLog[]
-        if (Array.isArray(parsed)) {
-          setEmailLog(parsed)
-        }
-      } catch {
-        setError('Nu am putut citi emailurile generate salvate local')
-      }
-    }
-
-    const storedRegulation = window.localStorage.getItem(REGULATION_STORAGE_KEY)
-    if (storedRegulation) {
-      try {
-        const parsed = JSON.parse(storedRegulation) as RegulationContent
-        setRegulationContent({ ...initialRegulationContent, ...parsed })
-      } catch {
-        setError('Nu am putut citi regulamentul salvat local')
-      }
-    }
-
-    const storedSmtpSettings = window.localStorage.getItem(SMTP_SETTINGS_STORAGE_KEY)
-    if (storedSmtpSettings) {
-      try {
-        const parsed = JSON.parse(storedSmtpSettings) as SmtpSettings
-        setSmtpSettings({ ...initialSmtpSettings, ...parsed })
-      } catch {
-        setError('Nu am putut citi configurarea SMTP salvata local')
-      }
-    }
-
-    setHasLoadedStoredState(true)
   }, [])
 
-  useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(RECOMMENDATIONS_STORAGE_KEY, JSON.stringify(recommendations))
-  }, [hasLoadedStoredState, recommendations])
-
-  useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(DIRECTORS_STORAGE_KEY, JSON.stringify(directors))
-  }, [directors, hasLoadedStoredState])
-
-  // Directors are the source of truth on the server so password resets propagate
-  // across browsers. Load from the API on mount; if it fails we silently keep the
-  // localStorage-backed directors (no regression) and never write back.
+  // Directors: server persistence
   useEffect(() => {
     let active = true
     fetch('/api/directors')
@@ -616,9 +528,7 @@ export default function AdminDashboard() {
           setDirectorsLoadedFromServer(true)
         }
       })
-      .catch(() => {
-        // Server unreachable → stay in localStorage-only mode.
-      })
+      .catch(() => {})
     return () => { active = false }
   }, [])
 
@@ -628,12 +538,10 @@ export default function AdminDashboard() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(directors),
-    }).catch(() => {
-      // Best-effort; localStorage copy already kept as fallback.
-    })
+    }).catch(() => {})
   }, [directors, directorsLoadedFromServer])
 
-  // Groups: server persistence (same pattern as directors)
+  // Groups: server persistence
   useEffect(() => {
     fetch('/api/groups')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
@@ -656,9 +564,7 @@ export default function AdminDashboard() {
   }, [groups, groupsLoadedFromServer])
 
   // Restore an existing session on refresh and keep the logged-in user in sync with
-  // the latest directors. Without the re-sync, a refresh would match the SEED director
-  // first (mustChangePassword still set) and then never update once server data lands,
-  // trapping the user on the change-password screen.
+  // the latest directors.
   useEffect(() => {
     const savedId = sessionStorage.getItem(ADMIN_SESSION_KEY)
     if (!savedId) return
@@ -668,7 +574,7 @@ export default function AdminDashboard() {
     setIsAuthenticated(true)
   }, [directors])
 
-  // Gold performers are persisted server-side too, mirroring the directors pattern.
+  // Gold performers: server persistence
   useEffect(() => {
     fetch('/api/performers')
       .then((res) => res.json())
@@ -688,8 +594,7 @@ export default function AdminDashboard() {
     }).catch(() => {})
   }, [performers, performersLoadedFromServer])
 
-  // SMTP settings are the source of truth on the server too, so recommendation
-  // notifications can be sent server-side for any (incl. public) submission.
+  // SMTP settings: server persistence
   useEffect(() => {
     let active = true
     fetch('/api/smtp')
@@ -700,9 +605,7 @@ export default function AdminDashboard() {
           setSmtpLoadedFromServer(true)
         }
       })
-      .catch(() => {
-        // Server unreachable → stay in localStorage-only mode.
-      })
+      .catch(() => {})
     return () => { active = false }
   }, [])
 
@@ -712,40 +615,123 @@ export default function AdminDashboard() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(smtpSettings),
-    }).catch(() => {
-      // Best-effort; localStorage copy already kept as fallback.
-    })
+    }).catch(() => {})
   }, [smtpSettings, smtpLoadedFromServer])
 
+  // Priority domains: server persistence
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(groups))
-  }, [groups, hasLoadedStoredState])
+    fetch('/api/priority-domains')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && Array.isArray(payload.data)) {
+          setPriorityDomains(payload.data as PriorityDomain[])
+          setDomainsLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(DOMAINS_STORAGE_KEY, JSON.stringify(priorityDomains))
-  }, [hasLoadedStoredState, priorityDomains])
+    if (!domainsLoadedFromServer) return
+    fetch('/api/priority-domains', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(priorityDomains),
+    }).catch(() => {})
+  }, [priorityDomains, domainsLoadedFromServer])
+
+  // Recommendations: server persistence
+  useEffect(() => {
+    fetch('/api/recommendations')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && Array.isArray(payload.data)) {
+          setRecommendations(payload.data as Recommendation[])
+          setRecommendationsLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(EMAIL_TEMPLATES_STORAGE_KEY, JSON.stringify(emailTemplates))
-  }, [emailTemplates, hasLoadedStoredState])
+    if (!recommendationsLoadedFromServer) return
+    fetch('/api/recommendations', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recommendations),
+    }).catch(() => {})
+  }, [recommendations, recommendationsLoadedFromServer])
+
+  // Regulation content: server persistence
+  useEffect(() => {
+    fetch('/api/regulation')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && payload.data && typeof payload.data === 'object') {
+          setRegulationContent(payload.data as RegulationContent)
+          setRegulationLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(EMAIL_LOG_STORAGE_KEY, JSON.stringify(emailLog))
-  }, [emailLog, hasLoadedStoredState])
+    if (!regulationLoadedFromServer) return
+    fetch('/api/regulation', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(regulationContent),
+    }).catch(() => {})
+  }, [regulationContent, regulationLoadedFromServer])
+
+  // Email templates: server persistence
+  useEffect(() => {
+    fetch('/api/email-templates')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && Array.isArray(payload.data)) {
+          // Merge in any template types added after this data was last saved
+          const merged = [...payload.data as EmailTemplate[]]
+          for (const template of initialEmailTemplates) {
+            if (!merged.some((item) => item.type === template.type)) merged.push(template)
+          }
+          setEmailTemplates(merged)
+          setEmailTemplatesLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(REGULATION_STORAGE_KEY, JSON.stringify(regulationContent))
-  }, [hasLoadedStoredState, regulationContent])
+    if (!emailTemplatesLoadedFromServer) return
+    fetch('/api/email-templates', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(emailTemplates),
+    }).catch(() => {})
+  }, [emailTemplates, emailTemplatesLoadedFromServer])
+
+  // Email log: server persistence
+  useEffect(() => {
+    fetch('/api/email-log')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && Array.isArray(payload.data)) {
+          setEmailLog(payload.data as EmailLog[])
+          setEmailLogLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!hasLoadedStoredState) return
-    window.localStorage.setItem(SMTP_SETTINGS_STORAGE_KEY, JSON.stringify(smtpSettings))
-  }, [hasLoadedStoredState, smtpSettings])
+    if (!emailLogLoadedFromServer) return
+    fetch('/api/email-log', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(emailLog),
+    }).catch(() => {})
+  }, [emailLog, emailLogLoadedFromServer])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()

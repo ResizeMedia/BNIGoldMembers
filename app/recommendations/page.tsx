@@ -3,19 +3,14 @@
 import { useEffect, useState } from 'react'
 import { predefinedDomains } from '@/lib/domain-options'
 import {
-  EMAIL_LOG_STORAGE_KEY,
-  EMAIL_TEMPLATES_STORAGE_KEY,
   EmailLog,
   EmailTemplate,
   GROUPS_STORAGE_KEY,
   Group,
-  RECOMMENDATIONS_STORAGE_KEY,
-  SMTP_SETTINGS_STORAGE_KEY,
   Recommendation,
   SmtpSettings,
   initialEmailTemplates,
   initialGroups,
-  initialRecommendations,
   initialSmtpSettings,
   isGroupActive,
   renderEmailTemplate,
@@ -80,8 +75,16 @@ export default function Recommendations() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const stored = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
-    const existingRecommendations = stored ? JSON.parse(stored) as Recommendation[] : initialRecommendations
+    // Fetch current recommendations from server
+    let existingRecommendations: Recommendation[] = []
+    try {
+      const res = await fetch('/api/recommendations')
+      const json = await res.json()
+      if (json?.success && Array.isArray(json.data)) existingRecommendations = json.data
+    } catch {
+      // Fall back to empty if server unreachable
+    }
+
     const newRecommendation: Recommendation = {
       id: Date.now(),
       from: formData.recommendingMember,
@@ -108,10 +111,22 @@ export default function Recommendations() {
       status: 'new',
     }
 
-    window.localStorage.setItem(RECOMMENDATIONS_STORAGE_KEY, JSON.stringify([...existingRecommendations, newRecommendation]))
+    // Save updated recommendations to server
+    fetch('/api/recommendations', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([...existingRecommendations, newRecommendation]),
+    }).catch(() => {})
 
-    const storedTemplates = window.localStorage.getItem(EMAIL_TEMPLATES_STORAGE_KEY)
-    const templates = storedTemplates ? JSON.parse(storedTemplates) as EmailTemplate[] : initialEmailTemplates
+    // Fetch email templates from server
+    let templates: EmailTemplate[] = initialEmailTemplates
+    try {
+      const res = await fetch('/api/email-templates')
+      const json = await res.json()
+      if (json?.success && Array.isArray(json.data)) templates = json.data
+    } catch {
+      // Fall back to initial templates
+    }
     const confirmationTemplate = templates.find((template) => template.type === 'recommendation_confirmation') || initialEmailTemplates[0]
     const renderedEmail = renderEmailTemplate(confirmationTemplate, {
       recommenderName: formData.recommendingMember,
@@ -131,13 +146,32 @@ export default function Recommendations() {
       status: 'generat',
     }
 
-    const storedEmailLog = window.localStorage.getItem(EMAIL_LOG_STORAGE_KEY)
-    const emailLog = storedEmailLog ? JSON.parse(storedEmailLog) as EmailLog[] : []
-    window.localStorage.setItem(EMAIL_LOG_STORAGE_KEY, JSON.stringify([...emailLog, emailEntry]))
+    // Fetch current email log from server and append
+    let emailLog: EmailLog[] = []
+    try {
+      const res = await fetch('/api/email-log')
+      const json = await res.json()
+      if (json?.success && Array.isArray(json.data)) emailLog = json.data
+    } catch {
+      // Fall back to empty
+    }
+    const updatedEmailLog = [...emailLog, emailEntry]
+    fetch('/api/email-log', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedEmailLog),
+    }).catch(() => {})
 
     if (formData.recommenderEmail) {
-      const storedSmtp = window.localStorage.getItem(SMTP_SETTINGS_STORAGE_KEY)
-      const smtpSettings: SmtpSettings = storedSmtp ? { ...initialSmtpSettings, ...JSON.parse(storedSmtp) as SmtpSettings } : initialSmtpSettings
+      // Fetch SMTP settings from server
+      let smtpSettings: SmtpSettings = initialSmtpSettings
+      try {
+        const res = await fetch('/api/smtp')
+        const json = await res.json()
+        if (json?.success && json.data) smtpSettings = { ...initialSmtpSettings, ...json.data }
+      } catch {
+        // Fall back to initial
+      }
 
       if (smtpSettings.host && smtpSettings.username && smtpSettings.password) {
         try {
@@ -154,14 +188,17 @@ export default function Recommendations() {
             }),
           })
           const result = await response.json() as { success?: boolean; error?: string }
-          const updatedLog = window.localStorage.getItem(EMAIL_LOG_STORAGE_KEY)
-          const logArr = updatedLog ? JSON.parse(updatedLog) as EmailLog[] : []
-          window.localStorage.setItem(EMAIL_LOG_STORAGE_KEY, JSON.stringify(
-            logArr.map((item) => item.id === emailEntry.id
-              ? { ...item, status: result.success ? 'trimis' : 'eroare', error: result.success ? undefined : result.error }
-              : item
-            )
-          ))
+          // Update email log entry status on server
+          fetch('/api/email-log', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              updatedEmailLog.map((item) => item.id === emailEntry.id
+                ? { ...item, status: result.success ? 'trimis' : 'eroare', error: result.success ? undefined : result.error }
+                : item
+              )
+            ),
+          }).catch(() => {})
         } catch {
           // Email send failed silently — logged in emailLog with 'generat' status
         }

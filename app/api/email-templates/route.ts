@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import path from 'path'
-import { initialPriorityDomains } from '@/lib/bni-data'
+import { initialEmailTemplates } from '@/lib/bni-data'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Legacy route kept for backwards compatibility — redirects to the same
-// data file used by /api/priority-domains.
 const dataDir = path.join(process.cwd(), 'data')
-const filePath = path.join(dataDir, 'priority-domains.json')
+const filePath = path.join(dataDir, 'email-templates.json')
 
-async function readDomains() {
+async function readEmailTemplates() {
   try {
     const raw = await fs.readFile(filePath, 'utf-8')
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : initialPriorityDomains
+    return Array.isArray(parsed) ? parsed : initialEmailTemplates
   } catch {
-    return initialPriorityDomains
+    return initialEmailTemplates
   }
 }
 
 export async function GET() {
-  const data = await readDomains()
+  const data = await readEmailTemplates()
   return NextResponse.json({ success: true, data })
 }
 

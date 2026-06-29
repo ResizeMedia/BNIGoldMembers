@@ -4,12 +4,9 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import LaunchSeats from '@/components/LaunchSeats'
 import {
-  DOMAINS_STORAGE_KEY,
   GROUPS_STORAGE_KEY,
   Group,
   PriorityDomain,
-  RECOMMENDATIONS_STORAGE_KEY,
-  REGULATION_STORAGE_KEY,
   Recommendation,
   RegulationContent,
   initialRegulationContent,
@@ -59,9 +56,6 @@ export default function Campanie() {
 
   useEffect(() => {
     const storedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
-    const storedDomains = window.localStorage.getItem(DOMAINS_STORAGE_KEY)
-    const storedRecommendations = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
-
     if (storedGroups) {
       try {
         const parsed = JSON.parse(storedGroups) as Group[]
@@ -75,33 +69,17 @@ export default function Campanie() {
       if (j?.success && Array.isArray(j.data)) setGroups(j.data)
     }).catch(() => {})
 
-    if (storedDomains) {
-      try {
-        const parsed = JSON.parse(storedDomains) as PriorityDomain[]
-        if (Array.isArray(parsed)) setPriorityDomains(parsed)
-      } catch {
-        setPriorityDomains(initialPriorityDomains)
-      }
-    }
+    fetch('/api/priority-domains').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setPriorityDomains(j.data)
+    }).catch(() => {})
 
-    if (storedRecommendations) {
-      try {
-        const parsed = JSON.parse(storedRecommendations) as Recommendation[]
-        if (Array.isArray(parsed)) setRecommendations(parsed)
-      } catch {
-        setRecommendations(initialRecommendations)
-      }
-    }
+    fetch('/api/recommendations').then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data)) setRecommendations(j.data)
+    }).catch(() => {})
 
-    const storedRegulation = window.localStorage.getItem(REGULATION_STORAGE_KEY)
-    if (storedRegulation) {
-      try {
-        const parsed = JSON.parse(storedRegulation) as Partial<RegulationContent>
-        setRegulation({ ...initialRegulationContent, ...parsed })
-      } catch {
-        setRegulation(initialRegulationContent)
-      }
-    }
+    fetch('/api/regulation').then((r) => r.json()).then((j) => {
+      if (j?.success && j.data && typeof j.data === 'object') setRegulation(j.data)
+    }).catch(() => {})
   }, [])
 
   const rankedGroups = useMemo(() => groups
