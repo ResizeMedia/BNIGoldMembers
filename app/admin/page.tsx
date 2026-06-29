@@ -22,6 +22,7 @@ import {
   getDirectorGroups,
   getDirectorRegions,
   getGroupsForDirector,
+  isGroupLaunched,
   getLaunchCompletionPercent,
   getLaunchProgressLabel,
   getLaunchSeats,
@@ -1203,7 +1204,7 @@ export default function AdminDashboard() {
                           <p className="text-xs text-slate-500">{group.region}</p>
                           <div className="mt-2 w-32">
                             <div className="mb-1 flex justify-between text-[10px] font-black uppercase text-slate-500">
-                              <span>Lansare</span>
+                              <span>{isGroupLaunched(group) ? 'Crestere' : 'Lansare'}</span>
                               <span>{group.recommendedMembers}/{group.launchTargetMembers}</span>
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-[#e5dfd5]" role="progressbar" aria-label={`Progres lansare ${group.name}`} aria-valuemin={0} aria-valuemax={group.launchTargetMembers} aria-valuenow={group.recommendedMembers}>
