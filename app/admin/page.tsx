@@ -1545,6 +1545,9 @@ export default function AdminDashboard() {
                     <div className="space-y-2">
                       <div>
                         <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
+                        {newDirector.role !== 'executive_director' && (
+                          <p className="mb-1 text-[11px] font-semibold text-amber-600">Regiunile se atribuie doar directorilor executivi. Pentru alte roluri, asigneaza grupuri BNI.</p>
+                        )}
                         <select
                           multiple
                           value={newDirector.regions}
@@ -1647,6 +1650,9 @@ export default function AdminDashboard() {
                                     <div className="grid gap-3 sm:grid-cols-2">
                                       <div>
                                         <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
+                                        {editingDirector.role !== 'executive_director' && (
+                                          <p className="mb-1 text-[11px] font-semibold text-amber-600">Regiunile se atribuie doar directorilor executivi. Pentru alte roluri, asigneaza grupuri BNI.</p>
+                                        )}
                                         <select
                                           multiple
                                           value={getDirectorRegions(editingDirector)}
