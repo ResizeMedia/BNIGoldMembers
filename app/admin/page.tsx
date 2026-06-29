@@ -331,7 +331,9 @@ export default function AdminDashboard() {
     { key: 'recommendations', label: 'Recomandari' },
     { key: 'domains', label: 'Domenii' },
     { key: 'directors', label: 'Directori' },
-    { key: 'performers', label: 'Membri Gold' },
+    ...(currentUser?.role !== 'launch_consultant' ? [
+      { key: 'performers' as AdminTab, label: 'Membri Gold' },
+    ] : []),
     { key: 'groups' as AdminTab, label: 'Grupuri' },
     ...(currentUser?.role === 'admin' ? [
       { key: 'regulation' as AdminTab, label: 'Regulament' },
@@ -1714,7 +1716,7 @@ export default function AdminDashboard() {
           </section>
         )}
 
-        {activeTab === 'performers' && (
+        {activeTab === 'performers' && currentUser.role !== 'launch_consultant' && (
           <section>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-black">Membri Gold</h2>
