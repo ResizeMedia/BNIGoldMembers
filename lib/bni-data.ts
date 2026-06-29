@@ -352,7 +352,8 @@ export function getGroupsForDirector(director: Director, groups: Group[]) {
 
   const directorRegions = getDirectorRegions(director)
   const directorGroups = getDirectorGroups(director)
-  return groups.filter((group) => directorRegions.includes(group.region) || directorGroups.includes(group.name))
+  const lcGroups = directorGroups.map((g) => g.toLowerCase())
+  return groups.filter((group) => directorRegions.includes(group.region) || lcGroups.includes(group.name.toLowerCase()))
 }
 
 export function isGroupActive(group: Group) {

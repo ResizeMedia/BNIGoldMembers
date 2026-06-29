@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Covers launch consultants, executives, and dual-role directors.
     const recipients = directors.filter((director) => {
       if (!director.email) return false
-      const launches = getDirectorGroups(director).includes(recommendation.group!)
+      const launches = getDirectorGroups(director).some((g) => g.toLowerCase() === recommendation.group!.toLowerCase())
       const oversees = region ? getDirectorRegions(director).includes(region) : false
       return launches || oversees
     })
