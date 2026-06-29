@@ -2082,9 +2082,6 @@ export default function AdminDashboard() {
 
         {activeTab === 'groups' && (
           <section>
-            <datalist id="director-names">
-              {directors.map((director) => <option key={director.id} value={director.name} />)}
-            </datalist>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-black">{currentUser.role === 'admin' ? 'Toate grupurile' : 'Grupuri din regiune'}</h2>
               <div className="flex items-center gap-2">
@@ -2116,7 +2113,10 @@ export default function AdminDashboard() {
                   </label>
                   <label className="text-xs font-black uppercase text-slate-500">
                     Persoana responsabila
-                    <input list="director-names" value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} placeholder="Consultant lansare" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950" />
+                    <select value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950">
+                      <option value="">Alege director</option>
+                      {directors.map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
+                    </select>
                   </label>
                   <label className="text-xs font-black uppercase text-slate-500">
                     Membri existenti
@@ -2179,7 +2179,10 @@ export default function AdminDashboard() {
                       <select value={editingGroup.region} onChange={(e) => setEditingGroup({ ...editingGroup, region: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         {regions.map((region) => <option key={region} value={region}>{region}</option>)}
                       </select>
-                      <input list="director-names" value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} placeholder="Persoana responsabila (consultant lansare)" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                      <select value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Alege director</option>
+                        {directors.map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
+                      </select>
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-xs font-black uppercase text-slate-500">
                           Membri existenti
