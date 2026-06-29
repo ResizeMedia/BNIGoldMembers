@@ -980,6 +980,15 @@ export default function AdminDashboard() {
     setGroups((prev) => prev.map((group) => group.name === groupName ? { ...group, active: group.active === false } : group))
   }
 
+  function deleteDirector(id: number) {
+    if (currentUser?.role !== 'admin') return
+    if (id === currentUser.id) { setError('Nu te poti sterge pe tine insuti'); return }
+    const d = directors.find((item) => item.id === id)
+    if (!d) return
+    if (!window.confirm(`Stergi definitiv directorul "${d.name}"?`)) return
+    setDirectors((prev) => prev.filter((item) => item.id !== id))
+  }
+
   const startEditDirector = (director: Director) => {
     setEditingDirectorId(director.id)
     setEditingDirector({ ...director, regions: getDirectorRegions(director), groups: getDirectorGroups(director), group: undefined, mustChangePassword: director.mustChangePassword !== false })
@@ -1609,9 +1618,12 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3 text-sm text-slate-500">{accessLabel(director)}</td>
                           <td className="px-4 py-3">
                             {currentUser.role === 'admin' ? (
-                              <button onClick={() => startEditDirector(director)} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-700">
-                                Editeaza
-                              </button>
+                              <div className="flex gap-1">
+                                <button onClick={() => startEditDirector(director)} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-700">Editeaza</button>
+                                {director.id !== currentUser.id && (
+                                  <button onClick={() => deleteDirector(director.id)} className="rounded-md border border-red-300 px-2 py-2 text-xs font-black text-[#c8102e] hover:bg-red-50">×</button>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-xs font-semibold text-slate-500">Doar vizualizare</span>
                             )}
