@@ -336,7 +336,7 @@ export default function AdminDashboard() {
     ...(currentUser?.role === 'admin' ? [
       { key: 'regulation' as AdminTab, label: 'Regulament' },
     ] : []),
-    ...(currentUser?.role === 'admin' || currentUser?.role === 'executive_director' ? [
+    ...(currentUser?.role === 'admin' ? [
       { key: 'email_templates' as AdminTab, label: 'Template email' },
     ] : []),
     ...(currentUser?.role === 'admin' ? [
@@ -2115,7 +2115,7 @@ export default function AdminDashboard() {
                     Persoana responsabila
                     <select value={newGroup.director} onChange={(e) => setNewGroup({ ...newGroup, director: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-950">
                       <option value="">Alege director</option>
-                      {directors.map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
+                      {[...directors].sort((a, b) => a.name.localeCompare(b.name, 'ro')).map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
                     </select>
                   </label>
                   <label className="text-xs font-black uppercase text-slate-500">
@@ -2181,7 +2181,7 @@ export default function AdminDashboard() {
                       </select>
                       <select value={editingGroup.director} onChange={(e) => setEditingGroup({ ...editingGroup, director: e.target.value })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         <option value="">Alege director</option>
-                        {directors.map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
+                        {[...directors].sort((a, b) => a.name.localeCompare(b.name, 'ro')).map((d) => <option key={d.id} value={d.name}>{d.name} — {roleLabel(d.role)}</option>)}
                       </select>
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-xs font-black uppercase text-slate-500">
