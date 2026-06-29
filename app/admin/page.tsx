@@ -132,6 +132,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
   const [directors, setDirectors] = useState<Director[]>(initialDirectors)
   const [directorsLoadedFromServer, setDirectorsLoadedFromServer] = useState(false)
+  const [groupsLoadedFromServer, setGroupsLoadedFromServer] = useState(false)
   const [smtpLoadedFromServer, setSmtpLoadedFromServer] = useState(false)
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [performers, setPerformers] = useState<GoldPerformer[]>(initialGoldPerformers)
@@ -331,9 +332,7 @@ export default function AdminDashboard() {
     { key: 'domains', label: 'Domenii' },
     { key: 'directors', label: 'Directori' },
     { key: 'performers', label: 'Membri Gold' },
-    ...(currentUser?.role === 'admin' || currentUser?.role === 'executive_director' ? [
-      { key: 'groups' as AdminTab, label: 'Grupuri' },
-    ] : []),
+    { key: 'groups' as AdminTab, label: 'Grupuri' },
     ...(currentUser?.role === 'admin' ? [
       { key: 'regulation' as AdminTab, label: 'Regulament' },
     ] : []),
@@ -631,6 +630,28 @@ export default function AdminDashboard() {
       // Best-effort; localStorage copy already kept as fallback.
     })
   }, [directors, directorsLoadedFromServer])
+
+  // Groups: server persistence (same pattern as directors)
+  useEffect(() => {
+    fetch('/api/groups')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad'))))
+      .then((payload) => {
+        if (payload?.success && Array.isArray(payload.data)) {
+          setGroups(payload.data as Group[])
+          setGroupsLoadedFromServer(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!groupsLoadedFromServer) return
+    fetch('/api/groups', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(groups),
+    }).catch(() => {})
+  }, [groups, groupsLoadedFromServer])
 
   // Restore an existing session on refresh and keep the logged-in user in sync with
   // the latest directors. Without the re-sync, a refresh would match the SEED director
@@ -2059,7 +2080,7 @@ export default function AdminDashboard() {
           </section>
         )}
 
-        {activeTab === 'groups' && (currentUser.role === 'admin' || currentUser.role === 'executive_director') && (
+        {activeTab === 'groups' && (
           <section>
             <datalist id="director-names">
               {directors.map((director) => <option key={director.id} value={director.name} />)}
