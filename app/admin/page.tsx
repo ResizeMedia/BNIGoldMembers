@@ -852,12 +852,21 @@ export default function AdminDashboard() {
     setPriorityDomains((prev) => prev.map((item) => item.id === id ? { ...item, inSlots: true } : item))
   }
 
+  const canAddDirectors = currentUser?.role === 'admin' || currentUser?.role === 'executive_director'
+
   const addDirector = () => {
     if (!newDirector.name || !newDirector.email) return
     if (!newDirector.temporaryPassword) return
     if (newDirector.role !== 'admin' && newDirector.regions.length === 0 && newDirector.groups.length === 0) {
       setError('Aloca cel putin o regiune (executiv) sau un grup (lansare)')
       return
+    }
+    if (currentUser?.role === 'executive_director') {
+      const visibleGroupNameSet = new Set(visibleGroups.map((g) => g.name))
+      if (newDirector.groups.some((g) => !visibleGroupNameSet.has(g))) {
+        setError('Poti adauga directori doar pentru grupurile din regiunile tale')
+        return
+      }
     }
     setDirectors((prev) => [...prev, { ...newDirector, id: prev.reduce((max, director) => Math.max(max, director.id), 0) + 1, mustChangePassword: true }])
     setNewDirector({ name: '', email: '', role: 'launch_consultant', temporaryPassword: '', regions: [], groups: [] })
@@ -1520,22 +1529,22 @@ export default function AdminDashboard() {
                 />
                 <span className="text-xs font-semibold text-slate-400">{displayedDirectors.length} afisati</span>
               </div>
-              {currentUser.role === 'admin' && (
+              {canAddDirectors && (
                 <button onClick={() => setShowAddDirector(true)} className="rounded-md bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700">Adauga director</button>
               )}
             </div>
 
             {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
-            {showAddDirector && currentUser.role === 'admin' && (
+            {showAddDirector && canAddDirectors && (
               <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
                   <input value={newDirector.name} onChange={(e) => setNewDirector({ ...newDirector, name: e.target.value })} placeholder="Nume complet" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   <input value={newDirector.email} onChange={(e) => setNewDirector({ ...newDirector, email: e.target.value })} placeholder="Email" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   <input value={newDirector.temporaryPassword} onChange={(e) => setNewDirector({ ...newDirector, temporaryPassword: e.target.value })} placeholder="Parola temporara" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   <select value={newDirector.role} onChange={(e) => setNewDirector({ ...newDirector, role: e.target.value as DirectorRole })} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                    <option value="admin">Administrator</option>
-                    <option value="executive_director">Director Executiv</option>
+                    {currentUser?.role === 'admin' && <option value="admin">Administrator</option>}
+                    {currentUser?.role === 'admin' && <option value="executive_director">Director Executiv</option>}
                     <option value="launch_consultant">Director Consultant Lansare</option>
                     <option value="growth_consultant">Director Consultant Crestere</option>
                   </select>
@@ -1543,22 +1552,27 @@ export default function AdminDashboard() {
                     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">Acces complet</div>
                   ) : (
                     <div className="space-y-2">
-                      <div>
-                        <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
-                        {newDirector.role !== 'executive_director' && (
-                          <p className="mb-1 text-[11px] font-semibold text-amber-600">Regiunile se atribuie doar directorilor executivi. Pentru alte roluri, asigneaza grupuri BNI.</p>
-                        )}
-                        <select
-                          multiple
-                          value={newDirector.regions}
-                          onChange={(e) => setNewDirector({ ...newDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value) })}
-                          className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                        >
-                          {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                        </select>
-                      </div>
+                      {currentUser?.role === 'admin' && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Regiuni (executiv)</p>
+                          {newDirector.role !== 'executive_director' && (
+                            <p className="mb-1 text-[11px] font-semibold text-amber-600">Regiunile se atribuie doar directorilor executivi. Pentru alte roluri, asigneaza grupuri BNI.</p>
+                          )}
+                          <select
+                            multiple
+                            value={newDirector.regions}
+                            onChange={(e) => setNewDirector({ ...newDirector, regions: Array.from(e.target.selectedOptions, (option) => option.value) })}
+                            className="min-h-[72px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          >
+                            {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <p className="mb-1 text-[11px] font-black uppercase text-slate-500">Grupuri BNI</p>
+                        {currentUser?.role === 'executive_director' && (
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">Grupuri din regiunile tale.</p>
+                        )}
                         <select
                           multiple
                           value={newDirector.groups}
@@ -1568,7 +1582,7 @@ export default function AdminDashboard() {
                           {groupedGroupOptions(visibleGroups)}
                         </select>
                       </div>
-                      <p className="text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru selectie multipla. Poti aloca si regiuni si grupuri (rol dublu).</p>
+                      <p className="text-[11px] font-semibold text-slate-500">Ctrl/Cmd + click pentru selectie multipla.</p>
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -1610,7 +1624,7 @@ export default function AdminDashboard() {
                             {currentUser.role === 'admin' ? (
                               <div className="flex gap-1">
                                 <button onClick={() => startEditDirector(director)} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-700">Editeaza</button>
-                                {director.id !== currentUser.id && (
+                                {currentUser.role === 'admin' && director.id !== currentUser.id && (
                                   <button onClick={() => deleteDirector(director.id)} className="rounded-md border border-red-300 px-2 py-2 text-xs font-black text-[#c8102e] hover:bg-red-50">×</button>
                                 )}
                               </div>
